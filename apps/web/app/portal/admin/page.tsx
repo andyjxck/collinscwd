@@ -934,21 +934,21 @@ export default function AdminPortal() {
         </div>
       </aside>
 
-      {/* ── Mobile pill nav (hidden on desktop via CSS) ── */}
-      <MobilePillNav
-        items={NAV_ITEMS}
-        activeKey={activeTab}
-        onSelect={(key) => {
-          setActiveTab(key as "jobs" | "clients" | "leads" | "photos" | "account");
-          if (key === "clients") loadClients();
-          if (key === "leads") loadLeads();
-          if (key === "photos") loadPhotos();
-        }}
-        styles={s}
-      />
-
       {/* ── Main ── */}
       <main className={s.main}>
+
+        {/* ── Mobile pill nav (inside main, hidden on desktop via CSS) ── */}
+        <MobilePillNav
+          items={NAV_ITEMS}
+          activeKey={activeTab}
+          onSelect={(key) => {
+            setActiveTab(key as "jobs" | "clients" | "leads" | "photos" | "account");
+            if (key === "clients") loadClients();
+            if (key === "leads") loadLeads();
+            if (key === "photos") loadPhotos();
+          }}
+          styles={s}
+        />
 
         {/* ── Jobs tab ── */}
         {activeTab === "jobs" && (
@@ -1608,6 +1608,34 @@ export default function AdminPortal() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ── Floating phase filter pill (mobile, jobs pipeline tab only) ── */}
+      {activeTab === "jobs" && view === "pipeline" && phases.length > 0 && (
+        <div className={s.phaseFloatPill}>
+          <span
+            className={`${s.phaseFloatAll} ${!phaseFilterPhase ? s.phaseFloatAllActive : ""}`}
+            onClick={() => setPhaseFilterPhase("")}
+            title="All phases"
+          >All</span>
+          <div className={s.phaseFloatSep} />
+          {phases.map((phase, i) => {
+            const colour = PHASE_COLOURS[i % PHASE_COLOURS.length] ?? "#6b7280";
+            const count = jobs.filter(j => jobPhaseName(j) === phase.name).length;
+            const isActive = phaseFilterPhase === phase.name;
+            return (
+              <div key={phase.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                <div
+                  className={`${s.phaseFloatDot} ${isActive ? s.phaseFloatDotActive : ""}`}
+                  style={{ borderColor: colour, background: isActive ? colour : "transparent", color: colour }}
+                  onClick={() => setPhaseFilterPhase(isActive ? "" : phase.name)}
+                  title={`${phase.name} · ${count}`}
+                />
+                <span className={`${s.phaseFloatCount} ${isActive ? s.phaseFloatCountActive : ""}`}>{count}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 

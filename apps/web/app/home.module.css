@@ -1317,16 +1317,6 @@
   .contactInner      { grid-template-columns: 1fr; gap: 60px; }
   .formRow2          { grid-template-columns: 1fr; }
   .processSteps      { grid-template-columns: repeat(2, 1fr); gap: 24px; }
-  /* Services: stack on tablet */
-  .servicesMorphLayout {
-    grid-template-columns: 1fr;
-    gap: 28px;
-    padding: 0 24px;
-    overflow-y: auto;
-  }
-  .servicesMorphOuter  { height: auto; }
-  .servicesMorphSticky { position: relative; height: auto; padding: 80px 0; }
-  .servicesMorphImgWrap { aspect-ratio: 16 / 9; }
 }
 @media (max-width: 640px) {
   .wrap          { padding: 0 20px; }

@@ -1464,12 +1464,10 @@
 /* ── Mobile pill nav ─────────────────────── */
 .mobilePillNav {
   display: none;
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 100;
-  padding: 10px 16px;
-  background: #0d1018;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 0 0 16px 0;
+  margin: -8px 0 8px 0;
 }
 .mobilePillTrigger {
   display: flex;
@@ -1548,17 +1546,82 @@
 
 /* ── Responsive ──────────────────────────── */
 @media (max-width: 768px) {
-  .sidebar    { display: none; }
-  .main       { margin-left: 0; padding: 16px; }
+  .sidebar     { display: none; }
+  .main        { margin-left: 0; padding: 20px 16px 60px; }
   .mobilePillNav { display: block; }
-  .stats      { grid-template-columns: repeat(2, 1fr); }
-  .tableHead  { display: none; }
-  .tableRow   { grid-template-columns: 1fr; gap: 4px; padding: 12px 14px; }
-  .tableRow > *:not(.tableJobTitle):not(.tableCell) { display: none; }
-  .pageHeader { gap: 12px; }
+  .stats       { grid-template-columns: repeat(2, 1fr); }
+  .tableHead   { display: none; }
+  .tableRow    { grid-template-columns: 1fr; gap: 4px; padding: 12px 14px; }
+  .pageHeader  { gap: 12px; }
   .pageActions { flex-wrap: wrap; }
   .drawerGrid2 { grid-template-columns: 1fr; }
   .drawerGrid3 { grid-template-columns: 1fr 1fr; }
+  .pipeline    { overflow-x: auto; }
+  .jobDetailGrid { grid-template-columns: 1fr; }
+}
+
+/* ── Floating vertical phase filter pill (mobile only) ── */
+.phaseFloatPill {
+  display: none;
+}
+@media (max-width: 768px) {
+  .phaseFloatPill {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    position: fixed;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 80;
+    background: rgba(13,16,24,0.88);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-radius: 99px;
+    padding: 10px 6px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.45);
+  }
+  .phaseFloatDot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid;
+    cursor: pointer;
+    transition: transform 0.15s, opacity 0.15s;
+    flex-shrink: 0;
+    opacity: 0.5;
+  }
+  .phaseFloatDot:hover { transform: scale(1.35); opacity: 1; }
+  .phaseFloatDotActive { transform: scale(1.3); opacity: 1; box-shadow: 0 0 6px currentColor; }
+  .phaseFloatCount {
+    font-size: 8px;
+    font-weight: 700;
+    color: rgba(232,236,248,0.35);
+    line-height: 1;
+    text-align: center;
+    min-width: 10px;
+  }
+  .phaseFloatCountActive { color: rgba(232,236,248,0.8); }
+  .phaseFloatSep {
+    width: 1px;
+    height: 6px;
+    background: rgba(255,255,255,0.07);
+    border-radius: 1px;
+  }
+  .phaseFloatAll {
+    font-size: 8px;
+    font-weight: 700;
+    color: rgba(232,236,248,0.3);
+    cursor: pointer;
+    padding: 2px 0;
+    transition: color 0.12s;
+    writing-mode: horizontal-tb;
+    letter-spacing: 0.3px;
+  }
+  .phaseFloatAll:hover { color: rgba(232,236,248,0.7); }
+  .phaseFloatAllActive { color: rgba(232,236,248,0.85); }
 }
 
 /* ── Magic link success ──────────────────── */

@@ -814,14 +814,10 @@
 
 /* ── Mobile pill nav ─────────────────────── */
 .mobilePillNav {
-  position: sticky;
-  top: 0;
+  display: none;
+  position: relative;
   z-index: 100;
-  padding: 10px 16px;
-  background: rgba(11,18,32,0.97);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  padding: 0 0 12px 0;
 }
 .mobilePillTrigger {
   display: flex;

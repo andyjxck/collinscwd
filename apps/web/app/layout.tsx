@@ -16,6 +16,11 @@ export const metadata: Metadata = {
   description: "Conservatories, windows and doors installation — Redditch",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
