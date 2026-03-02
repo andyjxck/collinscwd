@@ -228,6 +228,50 @@ function ScrollProcess() {
   );
 }
 
+/* ── Scroll-driven vertical process (mobile) ── */
+function ScrollProcessVertical() {
+  const sectionRef = useRef<HTMLDivElement>(null);
+  const [progress, setProgress] = useState(0);
+
+  useEffect(() => {
+    const onScroll = () => {
+      const el = sectionRef.current;
+      if (!el) return;
+      const { top, height } = el.getBoundingClientRect();
+      const vh = window.innerHeight;
+      const start = vh * 0.85;
+      const end = -height * 0.2;
+      const raw = (start - top) / (start - end);
+      setProgress(Math.min(1, Math.max(0, raw)));
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const activeStep = Math.min(STEPS.length - 1, Math.floor(progress * STEPS.length));
+  const linePct = progress * 100;
+
+  return (
+    <div className={s.processVertical} ref={sectionRef}>
+      <div className={s.processVerticalLine}>
+        <div className={s.processVerticalLineFill} style={{ height: `${linePct}%` }} />
+      </div>
+      {STEPS.map((step, i) => {
+        const done = i <= activeStep;
+        return (
+          <div key={step.num} className={`${s.processVerticalStep} ${done ? s.processVerticalStepActive : ""}`}>
+            <div className={`${s.processVerticalDot} ${done ? s.processVerticalDotDone : ""}`} />
+            <div className={s.processVerticalNum}>{step.num}</div>
+            <div className={s.processVerticalTitle}>{step.title}</div>
+            <p className={s.processVerticalDesc}>{step.desc}</p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 /* ── Speech bubble reviews ── */
 const REVIEWS = [
   {
@@ -593,6 +637,11 @@ export default function Home() {
             <AnimChars text="Collins' Conservatories, Windows & Doors" delay={200} charDelay={18} />
           </div>
 
+          {/* Mobile-only: logo above title */}
+          <div className={`${s.heroLogoAbove} ${heroReady ? s.heroLogoAboveReady : ""}`}>
+            <Image src="/logomaybe.png" alt="Collins" width={72} height={72} className={s.logoImg} priority />
+          </div>
+
           <div className={s.heroTitleRow}>
             <h1 className={s.h1}>
               <span className={s.h1Line}>
@@ -693,7 +742,10 @@ export default function Home() {
               <AnimWords text="No surprises." delay={400} wordDelay={120} />
             </h2>
           </RevealSection>
+          {/* Desktop horizontal */}
           <ScrollProcess />
+          {/* Mobile vertical */}
+          <ScrollProcessVertical />
         </div>
       </section>
 

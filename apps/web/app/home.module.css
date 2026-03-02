@@ -172,6 +172,18 @@
   opacity: 1;
   transform: translateX(0) scale(1);
 }
+.heroLogoAbove {
+  display: none;
+  opacity: 0;
+  transform: translateY(-12px) scale(0.88);
+  transition: opacity 0.9s cubic-bezier(0.22,1,0.36,1) 0.4s,
+              transform 0.9s cubic-bezier(0.22,1,0.36,1) 0.4s;
+  margin-bottom: 20px;
+}
+.heroLogoAboveReady {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+}
 
 /* ── Typewriter edit heading ─────────────────────────────── */
 .typewriterEdit {
@@ -693,6 +705,10 @@
   margin: 0 auto;
   padding: 0 56px;
 }
+/* Mobile: stack image above text */
+.servicesMorphImgMobile {
+  display: none;
+}
 .servicesMorphLeft {
   display: flex;
   flex-direction: column;
@@ -853,7 +869,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════
-   PROCESS — scroll-driven horizontal progress bar
+   PROCESS — scroll-driven horizontal progress bar / vertical mobile
    ══════════════════════════════════════════════════════════ */
 .process {
   background: #020407;
@@ -862,6 +878,88 @@
 .scrollProcess {
   margin-top: 72px;
   padding-bottom: 20px;
+}
+/* Vertical mobile process layout */
+.processVertical {
+  position: relative;
+  padding-left: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.processVerticalLine {
+  position: absolute;
+  left: 4px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: rgba(221,228,248,0.08);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.processVerticalLineFill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: linear-gradient(to bottom, rgba(196,162,90,0.9), rgba(240,220,160,0.5));
+  border-radius: 2px;
+  transition: height 0.05s linear;
+}
+.processVerticalStep {
+  position: relative;
+  padding: 0 0 36px 20px;
+}
+.processVerticalDot {
+  position: absolute;
+  left: -28px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(221,228,248,0.12);
+  border: 1.5px solid rgba(221,228,248,0.2);
+  transition: background 0.4s, border-color 0.4s, transform 0.3s cubic-bezier(0.22,1,0.36,1);
+  z-index: 1;
+}
+.processVerticalDotDone {
+  background: rgb(196,162,90);
+  border-color: rgba(220,190,120,0.9);
+  box-shadow: 0 0 10px rgba(196,162,90,0.5);
+  transform: scale(1.3);
+}
+.processVerticalNum {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: rgba(196,162,90,0.5);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+}
+.processVerticalTitle {
+  font-size: 17px;
+  font-weight: 800;
+  color: #f0f4ff;
+  letter-spacing: -0.3px;
+  margin-bottom: 6px;
+  opacity: 0.3;
+  transition: opacity 0.4s;
+}
+.processVerticalDesc {
+  font-size: 13px;
+  color: rgba(221,228,248,0.38);
+  line-height: 1.7;
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+  transition: opacity 0.4s, max-height 0.4s;
+}
+.processVerticalStepActive .processVerticalTitle {
+  opacity: 1;
+}
+.processVerticalStepActive .processVerticalDesc {
+  opacity: 1;
+  max-height: 120px;
 }
 
 /* Track */
@@ -1212,35 +1310,77 @@
   .heroScrollCue { right: 32px; }
   .contactInner  { padding: 0 32px; gap: 72px; }
   .footerInner   { padding: 0 32px; }
+  .servicesMorphLayout { padding: 0 32px; gap: 48px; }
 }
 @media (max-width: 900px) {
   .projectGrid       { grid-template-columns: 1fr; }
   .contactInner      { grid-template-columns: 1fr; gap: 60px; }
   .formRow2          { grid-template-columns: 1fr; }
-  /* Process: 4-col → 2-col on tablet */
   .processSteps      { grid-template-columns: repeat(2, 1fr); gap: 24px; }
-  /* Process track: keep horizontal */
+  /* Services: stack on tablet */
+  .servicesMorphLayout {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 0 24px;
+    overflow-y: auto;
+  }
+  .servicesMorphOuter  { height: auto; }
+  .servicesMorphSticky { position: relative; height: auto; padding: 80px 0; }
+  .servicesMorphImgWrap { aspect-ratio: 16 / 9; }
 }
 @media (max-width: 640px) {
   .wrap          { padding: 0 20px; }
   .heroContent   { padding: 0 20px 88px; }
   .heroCorner    { left: 20px; }
   .heroScrollCue { display: none; }
-  .h1            { letter-spacing: -2.5px; font-size: clamp(44px, 11vw, 72px); }
-  .sectionH2     { letter-spacing: -1px; }
+  .h1            { letter-spacing: -2.5px; font-size: clamp(40px, 10.5vw, 72px); }
+  .sectionH2     { letter-spacing: -1px; font-size: clamp(28px, 7.5vw, 48px); margin-bottom: 48px; }
   .serviceItem   { grid-template-columns: 1fr; gap: 12px; }
   .heroActions   { flex-direction: column; align-items: flex-start; gap: 24px; }
   .contactInner  { padding: 0 20px; }
   .footerInner   { padding: 0 20px; }
   .portalTrigger { padding: 6px 10px; }
   .portalTriggerLabel { display: none; }
-  /* Process: vertical on mobile */
-  .processSteps  { grid-template-columns: 1fr; gap: 20px; }
-  .processTrack  { display: none; }
-  .processCard   { opacity: 1; transform: none; border-left: 1px solid rgba(221,228,248,0.12); padding-left: 20px; }
+
+  /* Hero: logo above title on mobile */
+  .heroLogoAbove  { display: block; }
+  .heroLogoAbove img { width: 72px !important; height: 72px !important; }
+  .heroLogoRight  { display: none; }
+  .heroTitleRow   { display: block; }
+
+  /* Services: fully unsticky on mobile, stacked */
+  .servicesMorphOuter  { height: auto; }
+  .servicesMorphSticky { position: relative; height: auto; padding: 60px 0; }
+  .servicesMorphLayout {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding: 0 20px;
+  }
+  .servicesMorphCard   { padding: 16px 0 0; }
+  .servicesMorphTitle  { font-size: clamp(32px, 9vw, 56px); }
+  .servicesMorphDesc   { font-size: 14px; margin-bottom: 24px; }
+  .servicesMorphImgWrap { aspect-ratio: 4 / 3; }
+  .servicesMorphDots   { margin-top: 24px; }
+
+  /* Process: show vertical layout, hide horizontal */
+  .scrollProcess      { display: none; }
+  .processVertical    { display: flex; margin-top: 48px; }
+
   /* Bubbles */
   .bubblesWrap   { padding: 0 20px; }
-  .bubble        { max-width: 90%; }
+  .bubble        { max-width: 92%; }
+  .bubble_left   { transform: translateX(-30px) translateY(16px) scale(0.88); }
+  .bubble_right  { transform: translateX(30px) translateY(16px) scale(0.88); }
+
+  /* Contact */
+  .contact       { padding: 80px 0; }
+  .contactH2     { font-size: clamp(28px, 8vw, 44px); }
+
+  /* Footer */
+  .footer        { padding: 24px 0; }
+
+  /* Process section padding */
+  .process       { padding: 80px 0; }
 }
 
 /* ── Reduced motion ──────────────────────────────────────── */

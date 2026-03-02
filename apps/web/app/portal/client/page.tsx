@@ -6,6 +6,55 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "../../../lib/supabase";
 import s from "./client.module.css";
 
+// ── Mobile Pill Nav ────────────────────────────────────────────────
+type NavItem = { key: string; icon: string; label: string; badge?: number | null };
+function MobilePillNav({ items, activeKey, onSelect }: {
+  items: NavItem[];
+  activeKey: string;
+  onSelect: (key: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const active = items.find(i => i.key === activeKey);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div className={s.mobilePillNav} ref={ref}>
+      <button
+        className={s.mobilePillTrigger}
+        onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+      >
+        <span className={s.mobilePillIcon}>{active?.icon}</span>
+        <span className={s.mobilePillLabel}>{active?.label}</span>
+        <span className={`${s.mobilePillChevron} ${open ? s.mobilePillChevronOpen : ""}`}>▾</span>
+      </button>
+      {open && (
+        <div className={s.mobilePillMenu}>
+          {items.map(item => (
+            <button
+              key={item.key}
+              className={`${s.mobilePillItem} ${item.key === activeKey ? s.mobilePillItemActive : ""}`}
+              onClick={() => { onSelect(item.key); setOpen(false); }}
+            >
+              <span className={s.mobilePillItemIcon}>{item.icon}</span>
+              <span className={s.mobilePillItemLabel}>{item.label}</span>
+              {item.badge ? <span className={s.mobilePillBadge}>{item.badge}</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 type Job = {
   id: string;
   title: string;
@@ -374,6 +423,23 @@ export default function ClientPortal() {
         {/* ── Tabs ── */}
         {job && !loading && (
           <>
+            {/* Mobile pill nav */}
+            <MobilePillNav
+              items={[
+                { key: "overview", icon: "⊙", label: "Overview" },
+                { key: "timeline", icon: "◷", label: "Timeline" },
+                { key: "documents", icon: "📄", label: "Documents", badge: docs.length > 0 ? docs.length : null },
+                { key: "photos", icon: "🖼", label: "Photos", badge: photos.length > 0 ? photos.length : null },
+                { key: "messages", icon: "💬", label: "Messages" },
+              ]}
+              activeKey={activeTab}
+              onSelect={(key) => {
+                setActiveTab(key as typeof activeTab);
+                if (key === "messages" && clientId) loadMessages(clientId);
+                if (key === "photos") loadPhotos();
+              }}
+            />
+
             <div className={s.tabBar}>
               <div className={s.tabBarInner}>
                 {(["overview", "timeline", "documents", "photos", "messages"] as const).map(tab => (

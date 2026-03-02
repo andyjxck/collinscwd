@@ -7,6 +7,57 @@ import { createClient } from "../../../lib/supabase";
 import s from "./admin.module.css";
 import JobExpandedDetail from "./JobExpandedDetail";
 
+// ── Mobile Pill Nav ────────────────────────────────────────────────
+type NavItem = { key: string; icon: string; label: string; badge?: number | null };
+function MobilePillNav({ items, activeKey, onSelect, styles }: {
+  items: NavItem[];
+  activeKey: string;
+  onSelect: (key: string) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  styles: any;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const active = items.find(i => i.key === activeKey);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  return (
+    <div className={styles.mobilePillNav} ref={ref}>
+      <button
+        className={styles.mobilePillTrigger}
+        onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+      >
+        <span className={styles.mobilePillIcon}>{active?.icon}</span>
+        <span className={styles.mobilePillLabel}>{active?.label}</span>
+        <span className={`${styles.mobilePillChevron} ${open ? styles.mobilePillChevronOpen : ""}`}>▾</span>
+      </button>
+      {open && (
+        <div className={styles.mobilePillMenu}>
+          {items.map(item => (
+            <button
+              key={item.key}
+              className={`${styles.mobilePillItem} ${item.key === activeKey ? styles.mobilePillItemActive : ""}`}
+              onClick={() => { onSelect(item.key); setOpen(false); }}
+            >
+              <span className={styles.mobilePillItemIcon}>{item.icon}</span>
+              <span className={styles.mobilePillItemLabel}>{item.label}</span>
+              {item.badge ? <span className={styles.mobilePillBadge}>{item.badge}</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Types ──────────────────────────────────────────────────────────
 type Phase = { id: string; name: string; position: number; is_active: boolean };
 type Job = {
@@ -824,6 +875,16 @@ export default function AdminPortal() {
   const activeJobs = jobs.filter(j => j.status === "active");
   const newLeadsCount = leads.filter(l => l.status === "new").length;
 
+  const NAV_ITEMS = [
+    { key: "jobs" as const, icon: "◫", label: "Jobs" },
+    { key: "clients" as const, icon: "◎", label: "Clients" },
+    { key: "leads" as const, icon: "✉", label: "Leads", badge: newLeadsCount > 0 ? newLeadsCount : null },
+    { key: "photos" as const, icon: "📷", label: "Photos" },
+    { key: "account" as const, icon: "◉", label: "Account" },
+  ];
+
+  const activeNav = NAV_ITEMS.find(n => n.key === activeTab);
+
   return (
     <div className={s.root}>
 
@@ -872,6 +933,19 @@ export default function AdminPortal() {
           <Link href="/" className={s.backLink}>← Back to site</Link>
         </div>
       </aside>
+
+      {/* ── Mobile pill nav (hidden on desktop via CSS) ── */}
+      <MobilePillNav
+        items={NAV_ITEMS}
+        activeKey={activeTab}
+        onSelect={(key) => {
+          setActiveTab(key as "jobs" | "clients" | "leads" | "photos" | "account");
+          if (key === "clients") loadClients();
+          if (key === "leads") loadLeads();
+          if (key === "photos") loadPhotos();
+        }}
+        styles={s}
+      />
 
       {/* ── Main ── */}
       <main className={s.main}>

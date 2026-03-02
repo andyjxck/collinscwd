@@ -812,10 +812,104 @@
 .chatSendBtn:hover { color: #e9eeff; }
 .chatSendBtn:disabled { opacity: 0.2; cursor: not-allowed; }
 
+/* ── Mobile pill nav ─────────────────────── */
+.mobilePillNav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 10px 16px;
+  background: rgba(11,18,32,0.97);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.mobilePillTrigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 99px;
+  padding: 8px 16px 8px 12px;
+  cursor: pointer;
+  font-family: inherit;
+  width: 100%;
+  color: #e9eefc;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+.mobilePillTrigger:hover { background: rgba(255,255,255,0.09); }
+.mobilePillIcon { font-size: 16px; }
+.mobilePillLabel { flex: 1; text-align: left; }
+.mobilePillChevron {
+  font-size: 10px;
+  opacity: 0.5;
+  transition: transform 0.2s;
+  display: inline-block;
+}
+.mobilePillChevronOpen { transform: rotate(180deg); opacity: 0.8; }
+.mobilePillMenu {
+  position: absolute;
+  top: calc(100% - 4px);
+  left: 16px;
+  right: 16px;
+  background: rgba(11,18,32,0.98);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 8px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+  animation: pillMenuDrop 0.18s cubic-bezier(0.22,1,0.36,1);
+  z-index: 200;
+}
+@keyframes pillMenuDrop {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+.mobilePillItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(233,238,252,0.6);
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+  width: 100%;
+  text-align: left;
+  transition: background 0.12s, color 0.12s;
+}
+.mobilePillItem:hover { background: rgba(255,255,255,0.06); color: #e9eefc; }
+.mobilePillItemActive { color: #e9eefc; background: rgba(255,255,255,0.08); font-weight: 600; }
+.mobilePillItemIcon { font-size: 16px; width: 20px; text-align: center; }
+.mobilePillItemLabel { flex: 1; }
+.mobilePillBadge {
+  background: rgba(42,91,255,0.15);
+  color: #7fa5ff;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 99px;
+}
+
 /* ── Responsive ──────────────────────────── */
 @media (max-width: 640px) {
   .overviewGrid { grid-template-columns: 1fr; }
-  .bannerInner { flex-direction: column; }
-  .tabBarInner { overflow-x: auto; }
-  .tab { padding: 14px 12px; font-size: 13px; }
+  .bannerInner { flex-direction: column; gap: 10px; }
+  .tabBar { display: none; }
+  .mobilePillNav { display: block; }
+  .content { padding: 20px 16px 40px; }
+  .headerInner { padding: 0 16px; }
+  .bannerInner { padding: 0 16px 20px; }
+  .bubblesWrap { padding: 0 16px; }
+  .docRow { flex-wrap: wrap; gap: 8px; }
+}
+@media (min-width: 641px) {
+  .mobilePillNav { display: none; }
 }
