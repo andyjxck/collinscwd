@@ -58,6 +58,59 @@ function MobilePillNav({ items, activeKey, onSelect, styles }: {
   );
 }
 
+// ── Floating phase filter pill (mobile) ───────────────────────────
+function PhaseFloatPill({ phases, jobs, phaseFilterPhase, setPhaseFilterPhase, styles }: {
+  phases: { id: string; name: string; position: number; is_active: boolean }[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  jobs: any[];
+  phaseFilterPhase: string;
+  setPhaseFilterPhase: (v: string) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  styles: any;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  return (
+    <div className={`${styles.phaseFloatPill} ${expanded ? styles.phaseFloatPillExpanded : ""}`}>
+      <button
+        className={styles.phaseFloatToggle}
+        onClick={() => setExpanded(v => !v)}
+        title={expanded ? "Collapse" : "Filter by phase"}
+      />
+      <div className={styles.phaseFloatSep} />
+      {phases.map((phase, i) => {
+        const colour = PHASE_COLOURS[i % PHASE_COLOURS.length] ?? "#6b7280";
+        const count = jobs.filter((j: { current_phase?: { name: string }[] | { name: string } | null }) => {
+          if (!j.current_phase) return false;
+          const name = Array.isArray(j.current_phase) ? j.current_phase[0]?.name : j.current_phase?.name;
+          return name === phase.name;
+        }).length;
+        const isActive = phaseFilterPhase === phase.name;
+        return (
+          <div
+            key={phase.id}
+            className={styles.phaseFloatItem}
+            onClick={() => setPhaseFilterPhase(isActive ? "" : phase.name)}
+            title={`${phase.name} · ${count}`}
+          >
+            <div
+              className={`${styles.phaseFloatDot} ${isActive ? styles.phaseFloatDotActive : ""}`}
+              style={{ borderColor: colour, background: isActive ? colour : "transparent", color: colour }}
+            />
+            <span className={`${styles.phaseFloatLabel} ${isActive ? styles.phaseFloatLabelActive : ""}`}>
+              {phase.name}
+            </span>
+          </div>
+        );
+      })}
+      <div className={styles.phaseFloatSep} />
+      <button
+        className={`${styles.phaseFloatAll} ${!phaseFilterPhase ? styles.phaseFloatAllActive : ""}`}
+        onClick={() => setPhaseFilterPhase("")}
+      >All</button>
+    </div>
+  );
+}
+
 // ── Types ──────────────────────────────────────────────────────────
 type Phase = { id: string; name: string; position: number; is_active: boolean };
 type Job = {
@@ -1613,30 +1666,13 @@ export default function AdminPortal() {
 
       {/* ── Floating phase filter pill (mobile, jobs pipeline tab only) ── */}
       {activeTab === "jobs" && view === "pipeline" && phases.length > 0 && (
-        <div className={s.phaseFloatPill}>
-          <span
-            className={`${s.phaseFloatAll} ${!phaseFilterPhase ? s.phaseFloatAllActive : ""}`}
-            onClick={() => setPhaseFilterPhase("")}
-            title="All phases"
-          >All</span>
-          <div className={s.phaseFloatSep} />
-          {phases.map((phase, i) => {
-            const colour = PHASE_COLOURS[i % PHASE_COLOURS.length] ?? "#6b7280";
-            const count = jobs.filter(j => jobPhaseName(j) === phase.name).length;
-            const isActive = phaseFilterPhase === phase.name;
-            return (
-              <div key={phase.id} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-                <div
-                  className={`${s.phaseFloatDot} ${isActive ? s.phaseFloatDotActive : ""}`}
-                  style={{ borderColor: colour, background: isActive ? colour : "transparent", color: colour }}
-                  onClick={() => setPhaseFilterPhase(isActive ? "" : phase.name)}
-                  title={`${phase.name} · ${count}`}
-                />
-                <span className={`${s.phaseFloatCount} ${isActive ? s.phaseFloatCountActive : ""}`}>{count}</span>
-              </div>
-            );
-          })}
-        </div>
+        <PhaseFloatPill
+          phases={phases}
+          jobs={jobs}
+          phaseFilterPhase={phaseFilterPhase}
+          setPhaseFilterPhase={setPhaseFilterPhase}
+          styles={s}
+        />
       )}
 
     </div>

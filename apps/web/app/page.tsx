@@ -372,42 +372,69 @@ function ServicesMorph() {
   const outerRef = useRef<HTMLDivElement>(null);
   const [activeIdx, setActiveIdx] = useState(0);
   const [exiting, setExiting] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const pendingIdx = useRef(0);
 
   useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 640);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  useEffect(() => {
+    if (isMobile) return;
     const onScroll = () => {
       const el = outerRef.current;
       if (!el) return;
-      // scrollY relative to element's top edge in the document
       const elTop = el.getBoundingClientRect().top + window.scrollY;
       const scrolled = window.scrollY - elTop;
       const vh = window.innerHeight;
-      // each service occupies 1 viewport-height of scroll distance
       const total = (SERVICES.length - 1) * vh;
       const progress = Math.max(0, Math.min(1, scrolled / total));
       const newIdx = Math.min(SERVICES.length - 1, Math.floor(progress * SERVICES.length + 0.01));
       if (newIdx !== pendingIdx.current) {
         pendingIdx.current = newIdx;
         setExiting(true);
-        setTimeout(() => {
-          setActiveIdx(newIdx);
-          setExiting(false);
-        }, 280);
+        setTimeout(() => { setActiveIdx(newIdx); setExiting(false); }, 280);
       }
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
-  }, []);
+  }, [isMobile]);
 
-  // activeIdx is always clamped 0..SERVICES.length-1 above
+  /* ── Mobile: all 3 stacked, no scroll-pin ── */
+  if (isMobile) {
+    return (
+      <section className={s.servicesMorphOuter} id="services" style={{ height: "auto" }}>
+        <div className={s.servicesMorphAllCards}>
+          {SERVICES.map(svc => (
+            <div key={svc.num}>
+              <div className={s.servicesMorphNum}>{svc.num} / 0{SERVICES.length}</div>
+              <h2 className={s.servicesMorphTitle}>{svc.title}</h2>
+              <p className={s.servicesMorphDesc}>{svc.desc}</p>
+              <div className={s.servicesMorphImgWrap} style={{ marginTop: 16, borderRadius: 8, overflow: "hidden", aspectRatio: "4/3" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={svc.img} alt={svc.title} className={s.servicesMorphImg} />
+              </div>
+              <Link href="#contact" className={s.ctaLink} style={{ marginTop: 20, display: "inline-block" }}>
+                Enquire <span className={s.arrowLong}>→</span>
+              </Link>
+            </div>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  /* ── Desktop: scroll-pinned morph ── */
   const svc = SERVICES[activeIdx]!;
   const animClass = exiting ? s.servicesMorphExit : s.servicesMorphEnter;
   return (
     <section className={s.servicesMorphOuter} id="services" ref={outerRef}>
       <div className={s.servicesMorphSticky}>
         <div className={s.servicesMorphLayout}>
-          {/* Left: text */}
           <div className={s.servicesMorphLeft}>
             <div className={`${s.servicesMorphCard} ${animClass}`}>
               <div className={s.servicesMorphNum}>{svc.num} / 0{SERVICES.length}</div>
@@ -423,7 +450,6 @@ function ServicesMorph() {
               ))}
             </div>
           </div>
-          {/* Right: image */}
           <div className={`${s.servicesMorphImgWrap} ${animClass}`}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={svc.img} alt={svc.title} className={s.servicesMorphImg} />
@@ -634,12 +660,12 @@ export default function Home() {
           className={`${s.heroContent} ${heroReady ? s.heroReady : ""}`}
         >
           <div className={s.heroEyebrow}>
-            <AnimChars text="Collins' Conservatories, Windows & Doors" delay={200} charDelay={18} />
+            <AnimChars text="Collins' CW&D" delay={200} charDelay={18} />
           </div>
 
           {/* Mobile-only: logo above title */}
           <div className={`${s.heroLogoAbove} ${heroReady ? s.heroLogoAboveReady : ""}`}>
-            <Image src="/logomaybe.png" alt="Collins" width={72} height={72} className={s.logoImg} priority />
+            <Image src="/logomaybe.png" alt="Collins" width={120} height={120} className={s.logoImg} priority />
           </div>
 
           <div className={s.heroTitleRow}>

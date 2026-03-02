@@ -12,13 +12,19 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Collins Conservatories Windows and Doors",
+  title: "Collins' CW&D",
   description: "Conservatories, windows and doors installation — Redditch",
+  icons: {
+    icon: "/logomaybe.png",
+    apple: "/logomaybe.png",
+  },
 };
 
 export const viewport = {
   width: "device-width",
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 };
 
 export default function RootLayout({

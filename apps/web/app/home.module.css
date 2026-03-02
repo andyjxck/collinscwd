@@ -734,6 +734,9 @@
   line-height: 1.02;
   margin-bottom: 80px;
 }
+.servicesMorphAllCards {
+  display: none;
+}
 .servicesMorphCard {
   max-width: 680px;
   padding: 48px 0;
@@ -1326,31 +1329,38 @@
   .h1            { letter-spacing: -2.5px; font-size: clamp(40px, 10.5vw, 72px); }
   .sectionH2     { letter-spacing: -1px; font-size: clamp(28px, 7.5vw, 48px); margin-bottom: 48px; }
   .serviceItem   { grid-template-columns: 1fr; gap: 12px; }
-  .heroActions   { flex-direction: column; align-items: flex-start; gap: 24px; }
   .contactInner  { padding: 0 20px; }
   .footerInner   { padding: 0 20px; }
   .portalTrigger { padding: 6px 10px; }
   .portalTriggerLabel { display: none; }
 
-  /* Hero: logo above title on mobile */
-  .heroLogoAbove  { display: block; }
-  .heroLogoAbove img { width: 72px !important; height: 72px !important; }
+  /* Hero: logo above title on mobile — bigger + centered */
+  .heroLogoAbove  { display: flex; justify-content: center; margin-bottom: 24px; }
+  .heroLogoAbove img { width: 120px !important; height: 120px !important; }
   .heroLogoRight  { display: none; }
-  .heroTitleRow   { display: block; }
+  .heroTitleRow   { display: block; text-align: center; }
+  .h1             { text-align: center; }
+  .heroEyebrow    { text-align: center; }
+  .heroLead       { text-align: center; }
+  .heroActions    { justify-content: center; align-items: center; }
+  .heroCorner     { display: none; }
+  .heroContent    { padding: 0 20px 88px; align-items: center; }
 
-  /* Services: fully unsticky on mobile, stacked */
-  .servicesMorphOuter  { height: auto; }
-  .servicesMorphSticky { position: relative; height: auto; padding: 60px 0; }
+  /* Services: show all 3 as stacked cards on mobile — no scroll-pin */
+  .servicesMorphOuter  { height: auto !important; }
+  .servicesMorphSticky { position: relative !important; height: auto !important; padding: 0; overflow: visible; }
   .servicesMorphLayout {
     grid-template-columns: 1fr;
-    gap: 24px;
+    gap: 20px;
     padding: 0 20px;
   }
-  .servicesMorphCard   { padding: 16px 0 0; }
-  .servicesMorphTitle  { font-size: clamp(32px, 9vw, 56px); }
-  .servicesMorphDesc   { font-size: 14px; margin-bottom: 24px; }
-  .servicesMorphImgWrap { aspect-ratio: 4 / 3; }
-  .servicesMorphDots   { margin-top: 24px; }
+  .servicesMorphDots   { display: none; }
+  .servicesMorphCard   { padding: 0; }
+  .servicesMorphTitle  { font-size: clamp(32px, 9vw, 52px); }
+  .servicesMorphDesc   { font-size: 14px; margin-bottom: 20px; }
+  .servicesMorphImgWrap { aspect-ratio: 4 / 3; border-radius: 8px; }
+  /* Force show all 3 services stacked — JS hidden ones become visible */
+  .servicesMorphAllCards { display: flex; flex-direction: column; gap: 48px; padding: 48px 20px; }
 
   /* Process: show vertical layout, hide horizontal */
   .scrollProcess      { display: none; }
