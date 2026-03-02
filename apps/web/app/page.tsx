@@ -375,14 +375,13 @@ function ServicesMorph() {
   const pendingIdx = useRef(0);
 
   useEffect(() => {
-    const onScroll = () => {
+    const calc = () => {
       const el = outerRef.current;
       if (!el) return;
+      const total = el.offsetHeight - window.innerHeight;
+      if (total <= 0) return;
       const elTop = el.getBoundingClientRect().top + window.scrollY;
       const scrolled = window.scrollY - elTop;
-      const vh = window.innerHeight;
-      // total scrollable range = outer height minus the sticky viewport height
-      const total = el.offsetHeight - vh;
       const progress = Math.max(0, Math.min(1, scrolled / total));
       const newIdx = Math.min(SERVICES.length - 1, Math.floor(progress * SERVICES.length));
       if (newIdx !== pendingIdx.current) {
@@ -391,8 +390,10 @@ function ServicesMorph() {
         setTimeout(() => { setActiveIdx(newIdx); setExiting(false); }, 280);
       }
     };
+    const onScroll = () => calc();
     window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
+    // defer first call until after layout paint
+    requestAnimationFrame(() => calc());
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 

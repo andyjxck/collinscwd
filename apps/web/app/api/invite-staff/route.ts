@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     data: { full_name: fullName, phone: phone ?? null, role: role ?? "staff" },
-    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"}/portal/admin`,
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://collinscwd.netlify.app"}/portal/admin`,
   });
 
   if (error) {
