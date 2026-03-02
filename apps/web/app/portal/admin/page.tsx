@@ -1003,7 +1003,8 @@ export default function AdminPortal() {
       {/* ── Main ── */}
       <main className={s.main}>
 
-        {/* ── Mobile pill nav (inside main, hidden on desktop via CSS) ── */}
+        {/* ── Mobile: back to site + pill nav ── */}
+        <Link href="/" className={s.mobileBackLink}>← Site</Link>
         <MobilePillNav
           items={NAV_ITEMS}
           activeKey={activeTab}

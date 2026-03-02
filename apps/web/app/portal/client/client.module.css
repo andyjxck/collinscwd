@@ -812,6 +812,26 @@
 .chatSendBtn:hover { color: #e9eeff; }
 .chatSendBtn:disabled { opacity: 0.2; cursor: not-allowed; }
 
+/* ── Mobile back link ───────────────────── */
+.mobileBackLink {
+  display: none;
+}
+@media (max-width: 640px) {
+  .mobileBackLink {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(233,238,252,0.4);
+    letter-spacing: 0.3px;
+    margin-bottom: 12px;
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .mobileBackLink:hover { color: rgba(233,238,252,0.8); }
+}
+
 /* ── Mobile pill nav ─────────────────────── */
 .mobilePillNav {
   display: none;

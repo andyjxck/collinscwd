@@ -436,6 +436,8 @@ export default function ClientPortal() {
         {/* ── Tabs ── */}
         {job && !loading && (
           <>
+            {/* Mobile: back to site */}
+            <Link href="/" className={s.mobileBackLink}>← Site</Link>
             {/* Mobile pill nav */}
             <MobilePillNav
               items={[
