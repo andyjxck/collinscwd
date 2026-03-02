@@ -1346,21 +1346,12 @@
   .heroCorner     { display: none; }
   .heroContent    { padding: 0 20px 88px; align-items: center; }
 
-  /* Services: show all 3 as stacked cards on mobile — no scroll-pin */
-  .servicesMorphOuter  { height: auto !important; }
-  .servicesMorphSticky { position: relative !important; height: auto !important; padding: 0; overflow: visible; }
-  .servicesMorphLayout {
-    grid-template-columns: 1fr;
-    gap: 20px;
-    padding: 0 20px;
-  }
-  .servicesMorphDots   { display: none; }
-  .servicesMorphCard   { padding: 0; }
+  /* Services: mobile layout tweaks (sticky still active) */
+  .servicesMorphLayout { grid-template-columns: 1fr; gap: 20px; padding: 0 20px; }
+  .servicesMorphCard   { padding: 24px 0 0; }
   .servicesMorphTitle  { font-size: clamp(32px, 9vw, 52px); }
   .servicesMorphDesc   { font-size: 14px; margin-bottom: 20px; }
-  .servicesMorphImgWrap { aspect-ratio: 4 / 3; border-radius: 8px; }
-  /* Force show all 3 services stacked — JS hidden ones become visible */
-  .servicesMorphAllCards { display: flex; flex-direction: column; gap: 48px; padding: 48px 20px; }
+  .servicesMorphImgWrap { aspect-ratio: 4 / 3; }
 
   /* Process: show vertical layout, hide horizontal */
   .scrollProcess      { display: none; }

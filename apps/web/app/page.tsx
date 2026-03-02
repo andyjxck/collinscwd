@@ -372,18 +372,9 @@ function ServicesMorph() {
   const outerRef = useRef<HTMLDivElement>(null);
   const [activeIdx, setActiveIdx] = useState(0);
   const [exiting, setExiting] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
   const pendingIdx = useRef(0);
 
   useEffect(() => {
-    const check = () => setIsMobile(window.innerWidth <= 640);
-    check();
-    window.addEventListener("resize", check);
-    return () => window.removeEventListener("resize", check);
-  }, []);
-
-  useEffect(() => {
-    if (isMobile) return;
     const onScroll = () => {
       const el = outerRef.current;
       if (!el) return;
@@ -402,33 +393,8 @@ function ServicesMorph() {
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener("scroll", onScroll);
-  }, [isMobile]);
+  }, []);
 
-  /* ── Mobile: all 3 stacked, no scroll-pin ── */
-  if (isMobile) {
-    return (
-      <section className={s.servicesMorphOuter} id="services" style={{ height: "auto" }}>
-        <div className={s.servicesMorphAllCards}>
-          {SERVICES.map(svc => (
-            <div key={svc.num}>
-              <div className={s.servicesMorphNum}>{svc.num} / 0{SERVICES.length}</div>
-              <h2 className={s.servicesMorphTitle}>{svc.title}</h2>
-              <p className={s.servicesMorphDesc}>{svc.desc}</p>
-              <div className={s.servicesMorphImgWrap} style={{ marginTop: 16, borderRadius: 8, overflow: "hidden", aspectRatio: "4/3" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={svc.img} alt={svc.title} className={s.servicesMorphImg} />
-              </div>
-              <Link href="#contact" className={s.ctaLink} style={{ marginTop: 20, display: "inline-block" }}>
-                Enquire <span className={s.arrowLong}>→</span>
-              </Link>
-            </div>
-          ))}
-        </div>
-      </section>
-    );
-  }
-
-  /* ── Desktop: scroll-pinned morph ── */
   const svc = SERVICES[activeIdx]!;
   const animClass = exiting ? s.servicesMorphExit : s.servicesMorphEnter;
   return (
