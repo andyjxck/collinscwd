@@ -25,17 +25,21 @@ export async function GET(request: NextRequest) {
   );
 
   if (code) {
-    await supabase.auth.exchangeCodeForSession(code);
-    return NextResponse.redirect(`${origin}${next}`);
+    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    console.error("[auth/callback] exchangeCodeForSession error:", error.message);
+    const fallback = next.includes("/admin") ? "/portal/admin" : "/portal/client";
+    return NextResponse.redirect(`${origin}${fallback}?error=auth_failed`);
   }
 
   if (token_hash && type) {
-    const { error } = await supabase.auth.verifyOtp({ token_hash, type: type as "magiclink" | "email" });
-    if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
-    }
+    const { error } = await supabase.auth.verifyOtp({ token_hash, type: type as "magiclink" | "email" | "recovery" | "invite" | "signup" });
+    if (!error) return NextResponse.redirect(`${origin}${next}`);
+    console.error("[auth/callback] verifyOtp error:", error.message, "type:", type);
+    const fallback = next.includes("/admin") ? "/portal/admin" : "/portal/client";
+    return NextResponse.redirect(`${origin}${fallback}?error=auth_failed`);
   }
 
-  // Something went wrong — send back to client login with error
-  return NextResponse.redirect(`${origin}/portal/client?error=auth_failed`);
+  // No code or token_hash — just redirect to next destination (session may already exist)
+  return NextResponse.redirect(`${origin}${next}`);
 }

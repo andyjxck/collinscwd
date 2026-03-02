@@ -17,8 +17,8 @@
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 .dataErrorCard {
-  background: #111927;
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  border: none;
   border-radius: 16px;
   padding: 32px;
   max-width: 400px;
@@ -41,8 +41,8 @@
   font-size: 13px;
   color: #f87171;
   padding: 8px 12px;
-  background: rgba(248,113,113,0.08);
-  border: 1px solid rgba(248,113,113,0.2);
+  background: rgba(248,113,113,0.06);
+  border: none;
   border-radius: 8px;
 }
 .loadingMsg {
@@ -152,18 +152,18 @@
 .btnPrimary:disabled { opacity: 0.4; cursor: not-allowed; }
 .btnGhost {
   background: none;
-  border: 1px solid rgba(255,255,255,0.1);
-  color: rgba(232,236,248,0.6);
+  border: none;
+  color: rgba(232,236,248,0.5);
   font-size: 12px;
   font-weight: 500;
   padding: 8px 14px;
   border-radius: 8px;
   cursor: pointer;
   font-family: inherit;
-  transition: color 0.12s, border-color 0.12s;
+  transition: color 0.12s, background 0.12s;
   width: 100%;
 }
-.btnGhost:hover { color: #e8ecf8; border-color: rgba(255,255,255,0.2); }
+.btnGhost:hover { color: #e8ecf8; background: rgba(255,255,255,0.04); }
 .loginBack {
   font-size: 12px;
   color: rgba(232,236,248,0.3);
@@ -229,13 +229,13 @@
 }
 .photoCard {
   background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
+  border: none;
   border-radius: 8px;
   overflow: hidden;
-  transition: transform 0.12s;
+  transition: background 0.12s;
 }
 .photoCard:hover {
-  transform: translateY(-2px);
+  background: rgba(255,255,255,0.05);
 }
 .photoImg {
   width: 100%;
@@ -323,28 +323,26 @@
 .jobRef {
   font-size: 12px;
   font-weight: 700;
-  color: rgba(233,238,252,0.4);
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  padding: 4px 10px;
-  border-radius: 7px;
+  color: rgba(233,238,252,0.35);
+  background: none;
+  border: none;
+  padding: 0;
   letter-spacing: 0.4px;
 }
 .signOutBtn {
   background: none;
-  border: 1px solid rgba(255,255,255,0.09);
-  color: rgba(233,238,252,0.55);
+  border: none;
+  color: rgba(233,238,252,0.4);
   font-size: 13px;
-  font-weight: 600;
-  padding: 7px 14px;
-  border-radius: 9px;
+  font-weight: 500;
+  padding: 4px 0;
+  border-radius: 0;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.15s;
 }
 .signOutBtn:hover {
-  background: rgba(255,255,255,0.06);
-  color: rgba(233,238,252,0.85);
+  color: rgba(233,238,252,0.8);
 }
 
 .body {
@@ -393,12 +391,12 @@
   padding-top: 4px;
 }
 .phasePill {
-  background: rgba(42,91,255,0.15);
-  border: 1px solid rgba(42,91,255,0.35);
+  background: rgba(42,91,255,0.12);
+  border: none;
   color: #7fa5ff;
   font-size: 12px;
   font-weight: 700;
-  padding: 6px 14px;
+  padding: 5px 12px;
   border-radius: 99px;
 }
 
@@ -529,8 +527,8 @@
   gap: 14px;
 }
 .overviewCard {
-  background: #111927;
-  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.025);
+  border: none;
   border-radius: 14px;
   padding: 20px;
 }
@@ -553,8 +551,8 @@
   color: rgba(233,238,252,0.4);
 }
 .latestUpdate {
-  background: #111927;
-  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.025);
+  border: none;
   border-radius: 14px;
   padding: 22px 24px;
 }
@@ -642,8 +640,8 @@
   display: flex;
   flex-direction: column;
   gap: 0;
-  background: #111927;
-  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.025);
+  border: none;
   border-radius: 14px;
   overflow: hidden;
 }
@@ -652,8 +650,8 @@
   font-size: 13px;
   font-weight: 700;
   color: rgba(233,238,252,0.5);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
-  background: rgba(255,255,255,0.02);
+  border-bottom: none;
+  background: none;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -661,11 +659,10 @@
   display: flex;
   align-items: center;
   gap: 14px;
-  padding: 16px 20px;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  padding: 14px 20px;
+  border-bottom: none;
   transition: background 0.15s;
 }
-.docRow:last-child { border-bottom: none; }
 .docRow:hover { background: rgba(255,255,255,0.025); }
 .docIcon {
   font-size: 22px;
@@ -684,19 +681,19 @@
   color: rgba(233,238,252,0.4);
 }
 .docDownload {
-  background: rgba(42,91,255,0.12);
-  border: 1px solid rgba(42,91,255,0.3);
-  color: #7fa5ff;
+  background: none;
+  border: none;
+  color: rgba(127,165,255,0.7);
   font-size: 12px;
-  font-weight: 700;
-  padding: 7px 14px;
-  border-radius: 9px;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 7px;
   cursor: pointer;
   font-family: inherit;
   flex-shrink: 0;
-  transition: background 0.15s;
+  transition: color 0.12s, background 0.12s;
 }
-.docDownload:hover { background: rgba(42,91,255,0.22); }
+.docDownload:hover { color: #7fa5ff; background: rgba(42,91,255,0.08); }
 
 /* ── Messages ────────────────────────────── */
 .messages {
@@ -729,10 +726,11 @@
   display: flex;
   flex-direction: column;
   flex: 1;
-  border: 1px solid rgba(233,238,252,0.07);
+  border: none;
   border-radius: 12px;
   overflow: hidden;
   min-height: 320px;
+  background: rgba(255,255,255,0.02);
 }
 .chatMessages {
   flex: 1;

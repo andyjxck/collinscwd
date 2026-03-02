@@ -129,7 +129,7 @@ type Phase = { id: string; name: string; position: number; is_active: boolean };
 type Job = {
   id: string; title: string; status: string;
   town_city: string; postcode: string; updated_at: string; created_at: string;
-  address_line_1: string;
+  address_line_1: string; client_id: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   current_phase: any;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -214,7 +214,7 @@ function AccountsPanel({ supabase, currentProfile, onSignOut }: {
     (async () => {
       if (canSeeStaff) {
         const [staffRes, clientsRes] = await Promise.all([
-          supabase.from("zz_profiles").select("user_id,full_name,role,phone").order("full_name"),
+          supabase.from("zz_profiles").select("user_id,full_name,role,phone").in("role", ["owner","admin","staff"]).order("full_name"),
           supabase.from("zz_clients").select("id,created_at,full_name,email,phone,user_id").order("full_name"),
         ]);
         if (staffRes.data) setStaff(staffRes.data);
@@ -442,7 +442,6 @@ export default function AdminPortal() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [expandedLead, setExpandedLead] = useState<string | null>(null);
-  const [convertingLead, setConvertingLead] = useState<string | null>(null);
 
   // ── Clients state ────────────────────────────────────────────────
   const [clients, setClients] = useState<Client[]>([]);
@@ -450,17 +449,21 @@ export default function AdminPortal() {
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [clientActionLoading, setClientActionLoading] = useState(false);
   const [clientActionMsg, setClientActionMsg] = useState<string | null>(null);
-  const [cancelCodeInput, setCancelCodeInput] = useState("");
-  const [cancelCodeSent, setCancelCodeSent] = useState(false);
   const [cancelJobId, setCancelJobId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [lastCancelLogId, setLastCancelLogId] = useState<string | null>(null);
   const [messageText, setMessageText] = useState("");
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
-  const [clientActionPanel, setClientActionPanel] = useState<"none" | "message" | "email" | "cancel">("none");
+  const [clientActionPanel, setClientActionPanel] = useState<"none" | "message" | "email" | "cancel" | "edit">("none");
+  const [editClientForm, setEditClientForm] = useState({ full_name: "", email: "", phone: "" });
   type ChatMessage = { id: string; created_at: string; body: string; direction: string; sender_user_id: string | null };
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatLoading, setChatLoading] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
+
+  // ── Job status filter ───────────────────────────────────────────
+  const [jobStatusFilter, setJobStatusFilter] = useState<"" | "active" | "history" | "cancelled">("active");
 
   // ── Phases filter state ───────────────────────────────────────────
   const [phaseFilterPhase, setPhaseFilterPhase] = useState("");
@@ -494,12 +497,26 @@ export default function AdminPortal() {
   const [newJobSaving, setNewJobSaving] = useState(false);
   const [newJobError, setNewJobError] = useState("");
   const [newJobDone, setNewJobDone] = useState<{ clientEmail: string } | null>(null);
+  const [njClientMode, setNjClientMode] = useState<"new" | "existing">("new");
+  const [njExistingSearch, setNjExistingSearch] = useState("");
+  const [njExistingId, setNjExistingId] = useState("");
   const [nj, setNj] = useState({
     clientName: "", clientEmail: "", clientPhone: "",
-    title: "", addressLine1: "", addressLine2: "",
+    title: "", description: "", addressLine1: "", addressLine2: "",
     townCity: "", county: "", postcode: "",
     phaseId: "",
   });
+
+  // ── Convert lead modal ───────────────────────────────────────────
+  const [convertLeadData, setConvertLeadData] = useState<Lead | null>(null);
+  const [clForm, setClForm] = useState({
+    clientName: "", clientEmail: "", clientPhone: "",
+    jobTitle: "", jobDescription: "",
+    addressLine1: "", addressLine2: "", townCity: "", county: "", postcode: "",
+    phaseId: "",
+  });
+  const [clSaving, setClSaving] = useState(false);
+  const [clError, setClError] = useState("");
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const supabase = useMemo(() => createClient(), []);
@@ -508,6 +525,15 @@ export default function AdminPortal() {
   useEffect(() => {
     console.log("selectedJobId changed:", selectedJobId);
   }, [selectedJobId]);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<{ id: string }>).detail.id;
+      setPhotos(prev => prev.map(f => f.id === id ? { ...f, staff_deleted_at: new Date().toISOString() } : f));
+    };
+    window.addEventListener("zz_file_deleted", handler);
+    return () => window.removeEventListener("zz_file_deleted", handler);
+  }, []);
 
   // ── Phase management ─────────────────────────────────────────────
   async function addPhase() {
@@ -565,7 +591,7 @@ export default function AdminPortal() {
   async function loadPhotos() {
     const { data } = await supabase
       .from("zz_files")
-      .select("id,created_at,filename,mime_type,size_bytes,job_id,file_type,zz_jobs!inner(title,client_id,zz_clients!inner(full_name))")
+      .select("id,created_at,filename,mime_type,size_bytes,storage_path,storage_bucket,job_id,file_type,is_client_visible,staff_deleted_at,client_deleted_at,zz_jobs(id,title,zz_clients(full_name))")
       .order("created_at", { ascending: false });
     if (data) setPhotos(data as any[]);
   }
@@ -573,7 +599,7 @@ export default function AdminPortal() {
   async function loadJobFiles(jobId: string) {
     const { data } = await supabase
       .from("zz_files")
-      .select("id,created_at,filename,mime_type,size_bytes,job_id,file_type")
+      .select("id,created_at,filename,mime_type,size_bytes,job_id,file_type,storage_path,storage_bucket,staff_deleted_at,client_deleted_at")
       .eq("job_id", jobId);
     if (data) setPhotos(prev => {
       const withoutJob = prev.filter(f => f.job_id !== jobId);
@@ -628,7 +654,7 @@ export default function AdminPortal() {
     }
     const [jobsRes, phasesRes] = await Promise.all([
       supabase.from("zz_jobs")
-        .select("id,title,status,town_city,postcode,address_line_1,created_at,updated_at,current_phase:zz_job_phases(name),client:zz_clients(full_name,email)")
+        .select("id,title,status,client_id,town_city,postcode,address_line_1,created_at,updated_at,current_phase:zz_job_phases(name),client:zz_clients(id,full_name,email)")
         .neq("status", "deleted").order("updated_at", { ascending: false }),
       supabase.from("zz_job_phases").select("id,name,position,is_active").eq("is_active", true).order("position", { ascending: true }),
     ]);
@@ -658,23 +684,54 @@ export default function AdminPortal() {
     setLeads(prev => prev.map(l => l.id === id ? { ...l, status: "contacted" } : l));
   }
 
-  async function convertLead(lead: Lead) {
-    if (!lead.email) return;
-    setConvertingLead(lead.id);
+  function openConvertLead(lead: Lead) {
+    setConvertLeadData(lead);
+    setClForm({
+      clientName: lead.full_name ?? "",
+      clientEmail: lead.email ?? "",
+      clientPhone: lead.phone ?? "",
+      jobTitle: "",
+      jobDescription: lead.message ?? "",
+      addressLine1: "", addressLine2: "", townCity: "", county: "", postcode: "",
+      phaseId: phases[0]?.id ?? "",
+    });
+    setClError("");
+  }
+
+  async function submitConvertLead(e: React.FormEvent) {
+    e.preventDefault();
+    if (!convertLeadData) return;
+    setClSaving(true); setClError("");
     try {
-      // 1. Create client record
-      const { data: existing } = await supabase.from("zz_clients").select("id").eq("email", lead.email).maybeSingle();
-      if (!existing) {
-        await supabase.from("zz_clients").insert({ full_name: lead.full_name, email: lead.email, phone: lead.phone });
-      }
-      // 2. Send magic link for portal access
-      await supabase.auth.signInWithOtp({ email: lead.email, options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/portal/client` } });
-      // 3. Mark lead converted — then remove from visible list
-      await supabase.rpc("zz_update_lead_status", { p_id: lead.id, p_status: "converted" });
-      setLeads(prev => prev.filter(l => l.id !== lead.id));
+      const res = await fetch("/api/create-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientName: clForm.clientName.trim(),
+          clientEmail: clForm.clientEmail.trim(),
+          clientPhone: clForm.clientPhone.trim() || null,
+          jobTitle: clForm.jobTitle.trim(),
+          jobDescription: clForm.jobDescription.trim() || null,
+          addressLine1: clForm.addressLine1.trim(),
+          addressLine2: clForm.addressLine2.trim() || null,
+          townCity: clForm.townCity.trim(),
+          county: clForm.county.trim() || null,
+          postcode: clForm.postcode.trim(),
+          phaseId: clForm.phaseId || null,
+          leadId: convertLeadData.id,
+          sendInvite: true,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to convert lead");
+      setLeads(prev => prev.filter(l => l.id !== convertLeadData.id));
       setExpandedLead(null);
+      setConvertLeadData(null);
+      await loadData();
+    } catch (err: unknown) {
+      setClError(err instanceof Error ? err.message : "Unknown error");
     } finally {
-      setConvertingLead(null);
+      setClSaving(false);
     }
   }
 
@@ -690,9 +747,9 @@ export default function AdminPortal() {
     setSelectedClientId(closing ? null : id);
     setClientActionMsg(null);
     setClientActionPanel("none");
-    setCancelCodeSent(false);
-    setCancelCodeInput("");
     setCancelJobId(null);
+    setCancelReason("");
+    setLastCancelLogId(null);
     setMessageText("");
     setEmailSubject("");
     setEmailBody("");
@@ -701,16 +758,38 @@ export default function AdminPortal() {
 
   async function sendMagicLink(email: string) {
     setClientActionLoading(true);
-    await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/portal/client` } });
-    setClientActionMsg("Magic link sent to " + email);
+    const res = await fetch("/api/reset-client-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+    const json = await res.json();
+    if (json.error) {
+      setClientActionMsg("Error: " + json.error);
+    } else {
+      setClientActionMsg("Password reset link sent to " + email);
+    }
     setClientActionLoading(false);
   }
 
   async function assignProfile(clientId: string, email: string, fullName: string) {
     setClientActionLoading(true);
-    await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/portal/client` } });
-    setClientActionMsg("Magic link sent — client can now access the portal.");
-    setClients(prev => prev.map(c => c.id === clientId ? { ...c, user_id: "pending" } : c));
+    try {
+      const res = await fetch("/api/invite-staff", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, fullName, role: "client" }),
+      });
+      if (res.ok) {
+        setClientActionMsg("Invite sent — client will receive an email to set up access.");
+        setClients(prev => prev.map(c => c.id === clientId ? { ...c, user_id: "pending" } : c));
+      } else {
+        const { error } = await res.json();
+        setClientActionMsg(`Error: ${error}`);
+      }
+    } catch {
+      setClientActionMsg("Failed to send invite.");
+    }
     setClientActionLoading(false);
   }
 
@@ -749,33 +828,70 @@ export default function AdminPortal() {
     setClientActionPanel("none");
   }
 
-  async function requestCancelCode(clientId: string) {
+  async function updateClient(clientId: string) {
     setClientActionLoading(true);
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    await supabase.from("zz_cancel_codes").insert({ client_id: clientId, code, expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString() });
-    // Show code directly on screen — no Edge Function needed
-    setCancelCodeInput("");
-    setCancelCodeSent(true);
-    setClientActionMsg(`Your confirmation code is: ${code} (valid 10 min)`);
+    const update: Record<string, string | null> = {
+      full_name: editClientForm.full_name.trim() || null,
+      email: editClientForm.email.trim() || null,
+      phone: editClientForm.phone.trim() || null,
+    };
+    const { error } = await supabase.from("zz_clients").update(update).eq("id", clientId);
+    if (error) {
+      setClientActionMsg("Error: " + error.message);
+    } else {
+      setClients(prev => prev.map(c => c.id === clientId ? { ...c, ...update } : c));
+      setClientActionMsg("Client updated.");
+      setClientActionPanel("none");
+    }
     setClientActionLoading(false);
   }
 
-  async function verifyCancelCode(clientId: string) {
+  async function deleteClientFull(clientId: string) {
+    if (!confirm("Delete this client entirely? Their jobs will be unlinked but remain. This cannot be undone.")) return;
     setClientActionLoading(true);
-    const { data } = await supabase.from("zz_cancel_codes")
-      .select("id,expires_at").eq("client_id", clientId).eq("code", cancelCodeInput.trim()).maybeSingle();
-    if (data && new Date(data.expires_at) > new Date()) {
-      const jobId = cancelJobId;
-      if (jobId) {
-        await supabase.from("zz_jobs").update({ status: "cancelled" }).eq("id", jobId);
-        await supabase.from("zz_cancel_codes").delete().eq("id", data.id);
-        setJobs(prev => prev.filter(j => j.id !== jobId));
-        setClientActionMsg("Job cancelled.");
-      }
-      setCancelCodeSent(false); setCancelCodeInput(""); setCancelJobId(null);
-      setClientActionPanel("none");
-    } else {
-      setClientActionMsg("Invalid or expired code.");
+    await supabase.from("zz_clients").delete().eq("id", clientId);
+    setClients(prev => prev.filter(c => c.id !== clientId));
+    setSelectedClientId(null);
+    setClientActionLoading(false);
+  }
+
+  async function cancelJob(jobId: string, reason: string) {
+    if (!reason.trim()) return;
+    setClientActionLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    // Save prev state for undo
+    const prevJob = jobs.find(j => j.id === jobId);
+    // Write to mod log first
+    const { data: logRow } = await supabase.from("zz_mod_log").insert({
+      actor_user_id: user?.id ?? null,
+      action: "cancel_job",
+      target_table: "zz_jobs",
+      target_id: jobId,
+      reason: reason.trim(),
+      prev_state: { status: prevJob?.status ?? "active" },
+    }).select("id").single();
+    // Update job status
+    await supabase.from("zz_jobs").update({ status: "cancelled", cancel_reason: reason.trim() }).eq("id", jobId);
+    setJobs(prev => prev.map(j => j.id === jobId ? { ...j, status: "cancelled" as const } : j));
+    setLastCancelLogId(logRow?.id ?? null);
+    setCancelJobId(null);
+    setCancelReason("");
+    setClientActionPanel("none");
+    setClientActionMsg("Job cancelled.");
+    setClientActionLoading(false);
+  }
+
+  async function undoCancelJob(logId: string) {
+    setClientActionLoading(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: log } = await supabase.from("zz_mod_log").select("target_id,prev_state").eq("id", logId).single();
+    if (log) {
+      const prevStatus = (log.prev_state as { status: string }).status ?? "active";
+      await supabase.from("zz_jobs").update({ status: prevStatus, cancel_reason: null }).eq("id", log.target_id);
+      await supabase.from("zz_mod_log").update({ undone_at: new Date().toISOString(), undone_by: user?.id ?? null }).eq("id", logId);
+      setJobs(prev => prev.map(j => j.id === log.target_id ? { ...j, status: prevStatus as Job["status"] } : j));
+      setClientActionMsg("Cancellation undone.");
+      setLastCancelLogId(null);
     }
     setClientActionLoading(false);
   }
@@ -811,14 +927,18 @@ export default function AdminPortal() {
 
   async function changePhase(phaseId: string, jobId?: string) {
     const targetId = jobId ?? selectedJobId;
-    if (!targetId) { console.error("changePhase: no targetId"); return; }
-    const { error } = await supabase.from("zz_jobs").update({ current_phase_id: phaseId, updated_at: new Date().toISOString() }).eq("id", targetId);
+    if (!targetId) return;
+    const newPhase = phases.find(p => p.id === phaseId);
+    const newPhaseName = newPhase?.name ?? "";
+    const lastPhase = [...phases].sort((a, b) => b.position - a.position)[0];
+    const isCompleting = lastPhase?.id === phaseId || newPhaseName === "Completed";
+    const update: Record<string, string> = { current_phase_id: phaseId, updated_at: new Date().toISOString() };
+    if (isCompleting) update.status = "history";
+    const { error } = await supabase.from("zz_jobs").update(update).eq("id", targetId);
     if (error) { console.error("changePhase error:", error); return; }
-    const newPhaseName = phases.find(p => p.id === phaseId)?.name ?? "";
-    console.log("changePhase success: job", targetId, "→", newPhaseName);
     setJobDetail(prev => prev ? { ...prev, current_phase_id: phaseId } : prev);
     setJobs(prev => prev.map(j => j.id === targetId
-      ? { ...j, current_phase: [{ name: newPhaseName }] } : j));
+      ? { ...j, current_phase: [{ name: newPhaseName }], status: isCompleting ? "history" : j.status } : j));
   }
 
   async function saveNote(e: React.FormEvent) {
@@ -855,7 +975,8 @@ export default function AdminPortal() {
   
   // ── New job ───────────────────────────────────────────────────────
   function openNewJob() {
-    setNj({ clientName: "", clientEmail: "", clientPhone: "", title: "", addressLine1: "", addressLine2: "", townCity: "", county: "", postcode: "", phaseId: phases[0]?.id ?? "" });
+    setNj({ clientName: "", clientEmail: "", clientPhone: "", title: "", description: "", addressLine1: "", addressLine2: "", townCity: "", county: "", postcode: "", phaseId: phases[0]?.id ?? "" });
+    setNjClientMode("new"); setNjExistingSearch(""); setNjExistingId("");
     setNewJobError(""); setNewJobDone(null); setShowNewJob(true);
   }
 
@@ -863,30 +984,32 @@ export default function AdminPortal() {
     e.preventDefault();
     setNewJobError(""); setNewJobSaving(true);
     try {
-      const emailLower = nj.clientEmail.trim().toLowerCase();
-      // 1. Create or find client
-      let clientId: string;
-      const { data: existing } = await supabase.from("zz_clients").select("id").eq("email", emailLower).maybeSingle();
-      if (existing) {
-        clientId = existing.id;
+      const body: Record<string, unknown> = {
+        jobTitle: nj.title.trim(),
+        jobDescription: nj.description.trim() || null,
+        addressLine1: nj.addressLine1.trim(),
+        addressLine2: nj.addressLine2.trim() || null,
+        townCity: nj.townCity.trim(),
+        county: nj.county.trim() || null,
+        postcode: nj.postcode.trim(),
+        phaseId: nj.phaseId || null,
+        sendInvite: true,
+      };
+      if (njClientMode === "existing" && njExistingId) {
+        body.existingClientId = njExistingId;
       } else {
-        const { data: newClient, error: clientErr } = await supabase.from("zz_clients")
-          .insert({ full_name: nj.clientName.trim(), email: emailLower, phone: nj.clientPhone.trim() || null })
-          .select("id").single();
-        if (clientErr || !newClient) throw new Error(clientErr?.message ?? "Failed to create client");
-        clientId = newClient.id;
-        // Send magic link for portal access
-        await supabase.auth.signInWithOtp({ email: emailLower, options: { emailRedirectTo: `${window.location.origin}/portal/client` } });
+        body.clientName = nj.clientName.trim();
+        body.clientEmail = nj.clientEmail.trim();
+        body.clientPhone = nj.clientPhone.trim() || null;
       }
-      // 2. Create job
-      const { error: jobErr } = await supabase.from("zz_jobs").insert({
-        title: nj.title.trim(), client_id: clientId, current_phase_id: nj.phaseId || null,
-        address_line_1: nj.addressLine1.trim(), address_line_2: nj.addressLine2.trim() || null,
-        town_city: nj.townCity.trim(), county: nj.county.trim() || null,
-        postcode: nj.postcode.trim().toUpperCase(), status: "active",
+      const res = await fetch("/api/create-job", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       });
-      if (jobErr) throw new Error(jobErr.message);
-      setNewJobDone({ clientEmail: emailLower });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error ?? "Failed to create job");
+      setNewJobDone({ clientEmail: njClientMode === "existing" ? (clients.find(c => c.id === njExistingId)?.email ?? "") : nj.clientEmail.trim() });
       await loadData();
     } catch (err: unknown) {
       setNewJobError(err instanceof Error ? err.message : "Unknown error");
@@ -939,6 +1062,9 @@ export default function AdminPortal() {
   }
 
   const activeJobs = jobs.filter(j => j.status === "active");
+  const completedJobs = jobs.filter(j => j.status === "history");
+  const cancelledJobs = jobs.filter(j => j.status === "cancelled");
+  const filteredJobs = jobStatusFilter ? jobs.filter(j => j.status === jobStatusFilter) : jobs;
   const newLeadsCount = leads.filter(l => l.status === "new").length;
 
   const NAV_ITEMS = [
@@ -1035,10 +1161,25 @@ export default function AdminPortal() {
             </div>
 
             <div className={s.stats}>
-              <div className={s.stat}><div className={s.statVal}>{loading ? "—" : activeJobs.length}</div><div className={s.statLabel}>Active</div></div>
-              <div className={s.stat}><div className={s.statVal}>{loading ? "—" : jobs.filter(j => j.status === "history").length}</div><div className={s.statLabel}>Completed</div></div>
-              <div className={s.stat}><div className={s.statVal}>{loading ? "—" : phases.length}</div><div className={s.statLabel}>Phases</div></div>
-              <div className={s.stat}><div className={s.statVal}>{loading ? "—" : newLeadsCount}</div><div className={s.statLabel}>New leads</div></div>
+              <div className={`${s.stat} ${s.statClickable} ${jobStatusFilter === "active" ? s.statActive : ""}`}
+                onClick={() => setJobStatusFilter(jobStatusFilter === "active" ? "" : "active")}>
+                <div className={s.statVal}>{loading ? "—" : activeJobs.length}</div>
+                <div className={s.statLabel}>Active</div>
+              </div>
+              <div className={`${s.stat} ${s.statClickable} ${jobStatusFilter === "history" ? s.statActive : ""}`}
+                onClick={() => setJobStatusFilter(jobStatusFilter === "history" ? "" : "history")}>
+                <div className={s.statVal}>{loading ? "—" : completedJobs.length}</div>
+                <div className={s.statLabel}>Completed</div>
+              </div>
+              <div className={s.stat}>
+                <div className={s.statVal}>{loading ? "—" : phases.length}</div>
+                <div className={s.statLabel}>Phases</div>
+              </div>
+              <div className={`${s.stat} ${s.statClickable} ${activeTab !== "jobs" ? "" : ""}`}
+                onClick={() => { setActiveTab("leads"); loadLeads(); }}>
+                <div className={s.statVal}>{loading ? "—" : newLeadsCount}</div>
+                <div className={s.statLabel}>New leads</div>
+              </div>
             </div>
 
             {loading && <div className={s.loadingRow}>Loading…</div>}
@@ -1083,7 +1224,7 @@ export default function AdminPortal() {
 
                 {/* Jobs list */}
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  {activeJobs
+                  {filteredJobs
                     .filter(j => {
                       const matchPhase = !phaseFilterPhase || jobPhaseName(j) === phaseFilterPhase;
                       const q = phaseFilterSearch.toLowerCase();
@@ -1114,6 +1255,7 @@ export default function AdminPortal() {
                               blockedUpload={blockedUpload}
                               setBlockedUpload={setBlockedUpload}
                               photos={photos}
+                              onJobUpdate={(jobId, updates) => setJobs(prev => prev.map(j => j.id === jobId ? { ...j, ...updates } : j))}
                             />
                           )}
                         </div>
@@ -1128,8 +1270,8 @@ export default function AdminPortal() {
             {view === "list" && !loading && (
               <div className={s.table}>
                 <div className={s.tableHead}><div>Job</div><div>Client</div><div>Location</div><div>Phase</div><div>Updated</div><div /></div>
-                {jobs.length === 0 && <div className={s.tableEmpty}>No jobs yet.</div>}
-                {jobs.map(job => {
+                {filteredJobs.length === 0 && <div className={s.tableEmpty}>No jobs in this filter.</div>}
+                {filteredJobs.map(job => {
                   const phaseName = jobPhaseName(job);
                   const phaseIdx = phases.findIndex(p => p.name === phaseName);
                   const colour = PHASE_COLOURS[phaseIdx >= 0 ? phaseIdx % PHASE_COLOURS.length : 0] ?? "#6b7280";
@@ -1166,7 +1308,7 @@ export default function AdminPortal() {
               <div className={s.table}>
                 {clients.map(c => {
                   const isOpen = selectedClientId === c.id;
-                  const clientJobs = jobs.filter(j => j.client?.[0]?.email === c.email && j.status === "active");
+                  const clientJobs = jobs.filter(j => j.client_id === c.id && j.status === "active");
                   return (
                     <div key={c.id} className={s.leadRow}>
                       {/* Summary row */}
@@ -1185,6 +1327,27 @@ export default function AdminPortal() {
                       {isOpen && (
                         <div className={s.leadDetail}>
                           {clientActionMsg && <div className={s.magicLinkBox}>{clientActionMsg}</div>}
+
+                          {/* Active jobs for this client */}
+                          {clientJobs.length > 0 && (
+                            <div style={{ marginBottom: 10 }}>
+                              <div style={{ fontSize: 10, fontWeight: 700, color: "rgba(232,236,248,0.3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>
+                                Active jobs · {clientJobs.length}
+                              </div>
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                {clientJobs.map(j => (
+                                  <div key={j.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 8px", borderRadius: 5, background: "rgba(255,255,255,0.03)" }}>
+                                    <span style={{ fontSize: 12, color: "#e8ecf8", flex: 1 }}>{j.title}</span>
+                                    <span style={{ fontSize: 10, color: "rgba(232,236,248,0.35)" }}>{j.town_city}</span>
+                                    <span style={{ fontSize: 10, color: "#7fa5ff", background: "rgba(127,165,255,0.08)", borderRadius: 3, padding: "1px 5px" }}>{jobPhaseName(j) ?? "—"}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          {clientJobs.length === 0 && (
+                            <div style={{ fontSize: 11, color: "rgba(232,236,248,0.25)", marginBottom: 10 }}>No active jobs.</div>
+                          )}
 
                           {/* Quick action buttons */}
                           <div className={s.leadActions}>
@@ -1213,17 +1376,48 @@ export default function AdminPortal() {
                               }}>
                               💬 Message
                             </button>
-                            <button className={s.btnSmall}
-                              onClick={() => setClientActionPanel(clientActionPanel === "email" ? "none" : "email")}>
+                            <a href={`mailto:${c.email}`} className={s.btnSmall} style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
                               ✉ Email
-                            </button>
+                            </a>
                             {clientJobs.length > 0 && (
                               <button className={s.btnDanger}
-                                onClick={() => { setClientActionPanel("cancel"); setCancelCodeSent(false); }}>
+                                onClick={() => { setClientActionPanel("cancel"); setCancelJobId(null); setCancelReason(""); }}>
                                 Cancel job
                               </button>
                             )}
+                            <button className={s.btnSmall}
+                              onClick={() => {
+                                setClientActionPanel(clientActionPanel === "edit" ? "none" : "edit");
+                                setEditClientForm({ full_name: c.full_name ?? "", email: c.email ?? "", phone: c.phone ?? "" });
+                              }}>
+                              ✏ Edit
+                            </button>
+                            <button className={s.btnDanger} disabled={clientActionLoading}
+                              onClick={() => deleteClientFull(c.id)}>
+                              🗑 Delete client
+                            </button>
                           </div>
+
+                          {/* Edit panel */}
+                          {clientActionPanel === "edit" && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                                <input className={s.drawerInput} placeholder="Full name" value={editClientForm.full_name}
+                                  onChange={e => setEditClientForm(p => ({ ...p, full_name: e.target.value }))} />
+                                <input className={s.drawerInput} type="email" placeholder="Email" value={editClientForm.email}
+                                  onChange={e => setEditClientForm(p => ({ ...p, email: e.target.value }))} />
+                                <input className={s.drawerInput} type="tel" placeholder="Phone" value={editClientForm.phone}
+                                  onChange={e => setEditClientForm(p => ({ ...p, phone: e.target.value }))} />
+                              </div>
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <button className={s.btnPrimary} disabled={clientActionLoading || !editClientForm.full_name.trim()}
+                                  onClick={() => updateClient(c.id)}>
+                                  {clientActionLoading ? "Saving…" : "Save changes"}
+                                </button>
+                                <button className={s.btnGhost} onClick={() => setClientActionPanel("none")}>Cancel</button>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Chat panel */}
                           {clientActionPanel === "message" && (
@@ -1283,9 +1477,9 @@ export default function AdminPortal() {
 
                           {/* Cancel job panel */}
                           {clientActionPanel === "cancel" && (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                               <div style={{ fontSize: 12, color: "rgba(232,236,248,0.5)" }}>
-                                Select a job to cancel. A one-time code will be sent to your admin email to confirm.
+                                Select a job and provide a reason for cancellation.
                               </div>
                               {clientJobs.map(j => (
                                 <div key={j.id} style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1296,27 +1490,28 @@ export default function AdminPortal() {
                                   <span style={{ fontSize: 11, color: "rgba(232,236,248,0.35)" }}>{jobPhaseName(j) ?? "—"}</span>
                                 </div>
                               ))}
-                              {!cancelCodeSent ? (
-                                <div style={{ display: "flex", gap: 8 }}>
-                                  <button className={s.btnDanger} disabled={clientActionLoading || !cancelJobId}
-                                    onClick={() => requestCancelCode(c.id)}>
-                                    {clientActionLoading ? "Sending code…" : "Send confirmation code"}
-                                  </button>
-                                  <button className={s.btnGhost} onClick={() => setClientActionPanel("none")}>Back</button>
-                                </div>
-                              ) : (
-                                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                                  <div style={{ fontSize: 12, color: "rgba(232,236,248,0.5)" }}>
-                                    Code sent to your admin email. Enter it below to confirm cancellation.
-                                  </div>
-                                  <div style={{ display: "flex", gap: 8 }}>
-                                    <input className={s.drawerInput} style={{ maxWidth: 140 }} placeholder="6-digit code"
-                                      value={cancelCodeInput} onChange={e => setCancelCodeInput(e.target.value)} maxLength={6} />
-                                    <button className={s.btnDanger} disabled={clientActionLoading || cancelCodeInput.length < 6}
-                                      onClick={() => verifyCancelCode(c.id)}>Confirm cancel</button>
-                                  </div>
-                                </div>
-                              )}
+                              <textarea className={s.drawerInput} rows={2}
+                                placeholder="Reason for cancellation (required)…"
+                                value={cancelReason} onChange={e => setCancelReason(e.target.value)}
+                                style={{ resize: "vertical" }} />
+                              <div style={{ display: "flex", gap: 8 }}>
+                                <button className={s.btnDanger}
+                                  disabled={clientActionLoading || !cancelJobId || !cancelReason.trim()}
+                                  onClick={() => cancelJobId && cancelJob(cancelJobId, cancelReason)}>
+                                  {clientActionLoading ? "Cancelling…" : "Cancel job"}
+                                </button>
+                                <button className={s.btnGhost} onClick={() => setClientActionPanel("none")}>Back</button>
+                              </div>
+                            </div>
+                          )}
+                          {/* Undo last cancel */}
+                          {lastCancelLogId && clientActionPanel === "none" && (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                              <span style={{ fontSize: 11, color: "rgba(232,236,248,0.4)" }}>Job cancelled.</span>
+                              <button className={s.btnSmall} disabled={clientActionLoading}
+                                onClick={() => undoCancelJob(lastCancelLogId)}>
+                                ↩ Undo
+                              </button>
                             </div>
                           )}
                         </div>
@@ -1366,8 +1561,8 @@ export default function AdminPortal() {
                             <div className={s.leadActions}>
                               <button className={s.btnSmall} onClick={() => markLeadContacted(lead.id)}>Contacted</button>
                               {lead.email && (
-                                <button className={s.btnSuccess} onClick={() => convertLead(lead)} disabled={convertingLead === lead.id}>
-                                  {convertingLead === lead.id ? "Converting…" : "Convert → Create client"}
+                                <button className={s.btnSuccess} onClick={() => openConvertLead(lead)}>
+                                  Convert → Create client
                                 </button>
                               )}
                               <button className={s.btnDanger} onClick={() => dismissLead(lead.id)}>Dismiss</button>
@@ -1394,51 +1589,71 @@ export default function AdminPortal() {
           <>
             <div className={s.pageHeader}>
               <div>
-                <h1 className={s.pageTitle}>Photos</h1>
-                <p className={s.pageSub}>{photos.length} images across all jobs</p>
+                <h1 className={s.pageTitle}>Files & Photos</h1>
+                <p className={s.pageSub}>{photos.length} file{photos.length !== 1 ? "s" : ""} across all jobs</p>
               </div>
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <select className={s.drawerInput} style={{ maxWidth: 200 }} value={photoFilterJob} onChange={e => setPhotoFilterJob(e.target.value)}>
-                  <option value="">Select job to upload…</option>
-                  {jobs.map(job => <option key={job.id} value={job.id}>{job.title} — {job.client?.[0]?.full_name}</option>)}
-                </select>
-                <input type="file" ref={photoInputRef} accept="image/*" multiple style={{ display: "none" }} onChange={e => {
-                  const files = Array.from(e.target.files || []);
-                  files.forEach(file => uploadPhoto(file, photoFilterJob || undefined));
-                  e.target.value = "";
-                }} />
-                <button className={s.btnPrimary} onClick={() => photoInputRef.current?.click()} disabled={photoUploading || !photoFilterJob}>
-                  {photoUploading ? "Uploading…" : "Upload photos"}
-                </button>
-              </div>
+              <button className={s.btnGhost} onClick={loadPhotos}>Refresh</button>
             </div>
 
-            {/* View filter */}
-            <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 20 }}>
-              <select className={s.drawerInput} style={{ maxWidth: 240 }} value={photoFilterJob} onChange={e => setPhotoFilterJob(e.target.value)}>
-                <option value="">All jobs</option>
-                {jobs.map(job => <option key={job.id} value={job.id}>{job.title} — {job.client?.[0]?.full_name}</option>)}
-              </select>
-            </div>
-
-            {/* Photo grid */}
-            <div className={s.photoGrid}>
-              {photos.filter(p => !photoFilterJob || p.job_id === photoFilterJob).map(photo => (
-                <div key={photo.id} className={s.photoCard}>
-                  <img src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${photo.storage_bucket}/${photo.storage_path}`} alt={photo.filename} className={s.photoImg} />
-                  <div className={s.photoInfo}>
-                    <div className={s.photoFilename}>{photo.filename}</div>
-                    <div className={s.photoMeta}>
-                      {photo.zz_jobs?.[0]?.title} — {photo.zz_jobs?.[0]?.zz_clients?.[0]?.full_name}
+            {/* Per-job sections */}
+            {(() => {
+              const jobIds = Array.from(new Set(photos.map(p => p.job_id)));
+              const jobsWithFiles = jobIds.map(jid => {
+                const jobMeta = jobs.find(j => j.id === jid);
+                const files = photos.filter(p => p.job_id === jid);
+                return { jid, jobMeta, files };
+              });
+              if (jobsWithFiles.length === 0) return <div className={s.tableEmpty}>No files yet.</div>;
+              return jobsWithFiles.map(({ jid, jobMeta, files }) => {
+                const byType: Record<string, typeof files> = { quote: [], invoice: [], photo: [], other: [] };
+                files.forEach(f => { const t = f.file_type ?? "other"; const bucket = byType[t] ?? byType.other; bucket?.push(f); });
+                const typeLabel: Record<string, string> = { quote: "Quotes", invoice: "Invoices", photo: "Photos", other: "Other" };
+                const typeColour: Record<string, string> = { quote: "#fbbf24", invoice: "#34d399", photo: "#7fa5ff", other: "#9ca3af" };
+                return (
+                  <div key={jid} style={{ marginBottom: 24 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#e8ecf8", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+                      {jobMeta?.title ?? "Unknown job"}
+                      <span style={{ fontSize: 11, color: "rgba(232,236,248,0.4)", fontWeight: 400 }}>
+                        · {jobMeta?.client?.[0]?.full_name}
+                      </span>
                     </div>
-                    <div className={s.photoDate}>{relativeTime(photo.created_at)}</div>
+                    {(["quote", "invoice", "photo", "other"] as const).map(type => {
+                      const typedFiles = byType[type] ?? [];
+                      if (typedFiles.length === 0) return null;
+                      return (
+                        <div key={type} style={{ marginBottom: 12 }}>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: typeColour[type], letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>
+                            {typeLabel[type]}
+                          </div>
+                          <div className={s.photoGrid}>
+                            {typedFiles.map(photo => {
+                              const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/${photo.storage_bucket}/${photo.storage_path}`;
+                              const isImage = photo.mime_type?.startsWith("image/");
+                              return (
+                                <a key={photo.id} href={url} target="_blank" rel="noopener noreferrer" className={s.photoCard} style={{ textDecoration: "none" }}>
+                                  {isImage
+                                    ? <img src={url} alt={photo.filename} className={s.photoImg} />
+                                    : <div className={s.photoImg} style={{ display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, background: "rgba(255,255,255,0.03)" }}>
+                                        {type === "quote" ? "📄" : type === "invoice" ? "🧾" : "📎"}
+                                      </div>
+                                  }
+                                  <div className={s.photoInfo}>
+                                    <div className={s.photoFilename}>{photo.filename}</div>
+                                    <div style={{ fontSize: 10, color: typeColour[type], fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em" }}>{typeLabel[type]}</div>
+                                    <div className={s.photoDate}>{relativeTime(photo.created_at)}</div>
+                                  </div>
+                                </a>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div style={{ borderBottom: "1px solid rgba(255,255,255,0.05)", marginTop: 8 }} />
                   </div>
-                </div>
-              ))}
-              {photos.filter(p => !photoFilterJob || p.job_id === photoFilterJob).length === 0 && (
-                <div className={s.tableEmpty}>No photos {photoFilterJob ? "for this job" : ""}.</div>
-              )}
-            </div>
+                );
+              });
+            })()}
           </>
         )}
 
@@ -1476,26 +1691,78 @@ export default function AdminPortal() {
               </div>
             ) : (
               <form className={s.drawerForm} onSubmit={saveNewJob}>
-                <div className={s.drawerSection}>Client</div>
-                <div className={s.drawerGrid2}>
-                  <div className={s.drawerField}>
-                    <label className={s.drawerLabel}>Full name *</label>
-                    <input className={s.drawerInput} required value={nj.clientName} onChange={e => setNj(p => ({ ...p, clientName: e.target.value }))} />
-                  </div>
-                  <div className={s.drawerField}>
-                    <label className={s.drawerLabel}>Email *</label>
-                    <input className={s.drawerInput} type="email" required value={nj.clientEmail} onChange={e => setNj(p => ({ ...p, clientEmail: e.target.value }))} />
+                {/* Client section */}
+                <div className={s.drawerSection} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span>Client</span>
+                  <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
+                    <button type="button"
+                      className={njClientMode === "new" ? s.btnPrimary : s.btnGhost}
+                      style={{ fontSize: 11, padding: "2px 10px" }}
+                      onClick={() => setNjClientMode("new")}>New client</button>
+                    <button type="button"
+                      className={njClientMode === "existing" ? s.btnPrimary : s.btnGhost}
+                      style={{ fontSize: 11, padding: "2px 10px" }}
+                      onClick={() => { setNjClientMode("existing"); if (!clients.length) loadClients(); }}>Existing client</button>
                   </div>
                 </div>
-                <div className={s.drawerField}>
-                  <label className={s.drawerLabel}>Phone</label>
-                  <input className={s.drawerInput} type="tel" value={nj.clientPhone} onChange={e => setNj(p => ({ ...p, clientPhone: e.target.value }))} />
-                </div>
+
+                {njClientMode === "new" && (
+                  <>
+                    <div className={s.drawerGrid2}>
+                      <div className={s.drawerField}>
+                        <label className={s.drawerLabel}>Full name *</label>
+                        <input className={s.drawerInput} required={njClientMode === "new"} value={nj.clientName} onChange={e => setNj(p => ({ ...p, clientName: e.target.value }))} />
+                      </div>
+                      <div className={s.drawerField}>
+                        <label className={s.drawerLabel}>Email *</label>
+                        <input className={s.drawerInput} type="email" required={njClientMode === "new"} value={nj.clientEmail} onChange={e => setNj(p => ({ ...p, clientEmail: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className={s.drawerField}>
+                      <label className={s.drawerLabel}>Phone</label>
+                      <input className={s.drawerInput} type="tel" value={nj.clientPhone} onChange={e => setNj(p => ({ ...p, clientPhone: e.target.value }))} />
+                    </div>
+                  </>
+                )}
+
+                {njClientMode === "existing" && (
+                  <div className={s.drawerField}>
+                    <label className={s.drawerLabel}>Search existing client</label>
+                    <input className={s.drawerInput} placeholder="Name or email…"
+                      value={njExistingSearch} onChange={e => { setNjExistingSearch(e.target.value); setNjExistingId(""); }} />
+                    {njExistingSearch.length > 0 && (
+                      <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+                        {clients
+                          .filter(c => c.full_name.toLowerCase().includes(njExistingSearch.toLowerCase()) || c.email.toLowerCase().includes(njExistingSearch.toLowerCase()))
+                          .slice(0, 6)
+                          .map(c => (
+                            <button key={c.id} type="button"
+                              style={{ textAlign: "left", padding: "6px 10px", borderRadius: 5, border: "none", cursor: "pointer",
+                                background: njExistingId === c.id ? "rgba(127,165,255,0.15)" : "rgba(255,255,255,0.04)",
+                                color: njExistingId === c.id ? "#7fa5ff" : "#e8ecf8", fontSize: 12 }}
+                              onClick={() => { setNjExistingId(c.id); setNjExistingSearch(c.full_name); }}>
+                              {c.full_name} <span style={{ color: "rgba(232,236,248,0.4)", fontSize: 11 }}>{c.email}</span>
+                            </button>
+                          ))}
+                        {clients.filter(c => c.full_name.toLowerCase().includes(njExistingSearch.toLowerCase()) || c.email.toLowerCase().includes(njExistingSearch.toLowerCase())).length === 0 && (
+                          <div style={{ fontSize: 11, color: "rgba(232,236,248,0.3)", padding: "4px 0" }}>No clients found</div>
+                        )}
+                      </div>
+                    )}
+                    {njExistingId && (
+                      <div style={{ fontSize: 11, color: "#34d399", marginTop: 4 }}>✓ Linked to {clients.find(c => c.id === njExistingId)?.full_name}</div>
+                    )}
+                  </div>
+                )}
 
                 <div className={s.drawerSection}>Job</div>
                 <div className={s.drawerField}>
                   <label className={s.drawerLabel}>Job title *</label>
                   <input className={s.drawerInput} required placeholder="e.g. Conservatory extension" value={nj.title} onChange={e => setNj(p => ({ ...p, title: e.target.value }))} />
+                </div>
+                <div className={s.drawerField}>
+                  <label className={s.drawerLabel}>Description</label>
+                  <textarea className={s.drawerInput} rows={2} style={{ resize: "vertical" }} placeholder="Brief description of the work…" value={nj.description} onChange={e => setNj(p => ({ ...p, description: e.target.value }))} />
                 </div>
                 <div className={s.drawerField}>
                   <label className={s.drawerLabel}>Starting phase</label>
@@ -1532,10 +1799,103 @@ export default function AdminPortal() {
                 {newJobError && <div className={s.drawerError}>{newJobError}</div>}
                 <div className={s.drawerActions}>
                   <button type="button" className={s.btnGhost} onClick={() => setShowNewJob(false)} disabled={newJobSaving}>Cancel</button>
-                  <button type="submit" className={s.btnPrimary} disabled={newJobSaving}>{newJobSaving ? "Saving…" : "Create job + send login"}</button>
+                  <button type="submit" className={s.btnPrimary}
+                    disabled={newJobSaving || (njClientMode === "existing" && !njExistingId)}>
+                    {newJobSaving ? "Creating…" : "Create job + send invite"}
+                  </button>
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Convert Lead modal ── */}
+      {convertLeadData && (
+        <div className={s.overlay} onClick={() => setConvertLeadData(null)}>
+          <div className={s.drawer} onClick={e => e.stopPropagation()}>
+            <div className={s.drawerHeader}>
+              <div className={s.drawerTitle}>Convert Lead → Client + Job</div>
+              <button className={s.drawerClose} onClick={() => setConvertLeadData(null)}>✕</button>
+            </div>
+            <form className={s.drawerForm} onSubmit={submitConvertLead}>
+              <div className={s.drawerSection}>Client details</div>
+              <div className={s.drawerGrid2}>
+                <div className={s.drawerField}>
+                  <label className={s.drawerLabel}>Full name *</label>
+                  <input className={s.drawerInput} required value={clForm.clientName}
+                    onChange={e => setClForm(p => ({ ...p, clientName: e.target.value }))} />
+                </div>
+                <div className={s.drawerField}>
+                  <label className={s.drawerLabel}>Email *</label>
+                  <input className={s.drawerInput} type="email" required value={clForm.clientEmail}
+                    onChange={e => setClForm(p => ({ ...p, clientEmail: e.target.value }))} />
+                </div>
+              </div>
+              <div className={s.drawerField}>
+                <label className={s.drawerLabel}>Phone</label>
+                <input className={s.drawerInput} type="tel" value={clForm.clientPhone}
+                  onChange={e => setClForm(p => ({ ...p, clientPhone: e.target.value }))} />
+              </div>
+
+              <div className={s.drawerSection}>Job</div>
+              <div className={s.drawerField}>
+                <label className={s.drawerLabel}>Job title *</label>
+                <input className={s.drawerInput} required placeholder="e.g. Conservatory extension"
+                  value={clForm.jobTitle} onChange={e => setClForm(p => ({ ...p, jobTitle: e.target.value }))} />
+              </div>
+              <div className={s.drawerField}>
+                <label className={s.drawerLabel}>Description</label>
+                <textarea className={s.drawerInput} rows={3} style={{ resize: "vertical" }}
+                  placeholder="Description from enquiry…"
+                  value={clForm.jobDescription} onChange={e => setClForm(p => ({ ...p, jobDescription: e.target.value }))} />
+              </div>
+              <div className={s.drawerField}>
+                <label className={s.drawerLabel}>Starting phase</label>
+                <select className={s.drawerInput} value={clForm.phaseId}
+                  onChange={e => setClForm(p => ({ ...p, phaseId: e.target.value }))}>
+                  <option value="">— None —</option>
+                  {phases.map(ph => <option key={ph.id} value={ph.id}>{ph.name}</option>)}
+                </select>
+              </div>
+
+              <div className={s.drawerSection}>Address</div>
+              <div className={s.drawerField}>
+                <label className={s.drawerLabel}>Line 1 *</label>
+                <input className={s.drawerInput} required value={clForm.addressLine1}
+                  onChange={e => setClForm(p => ({ ...p, addressLine1: e.target.value }))} />
+              </div>
+              <div className={s.drawerField}>
+                <label className={s.drawerLabel}>Line 2</label>
+                <input className={s.drawerInput} value={clForm.addressLine2}
+                  onChange={e => setClForm(p => ({ ...p, addressLine2: e.target.value }))} />
+              </div>
+              <div className={s.drawerGrid3}>
+                <div className={s.drawerField}>
+                  <label className={s.drawerLabel}>Town / City *</label>
+                  <input className={s.drawerInput} required value={clForm.townCity}
+                    onChange={e => setClForm(p => ({ ...p, townCity: e.target.value }))} />
+                </div>
+                <div className={s.drawerField}>
+                  <label className={s.drawerLabel}>County</label>
+                  <input className={s.drawerInput} value={clForm.county}
+                    onChange={e => setClForm(p => ({ ...p, county: e.target.value }))} />
+                </div>
+                <div className={s.drawerField}>
+                  <label className={s.drawerLabel}>Postcode *</label>
+                  <input className={s.drawerInput} required value={clForm.postcode}
+                    onChange={e => setClForm(p => ({ ...p, postcode: e.target.value }))} />
+                </div>
+              </div>
+
+              {clError && <div className={s.drawerError}>{clError}</div>}
+              <div className={s.drawerActions}>
+                <button type="button" className={s.btnGhost} onClick={() => setConvertLeadData(null)} disabled={clSaving}>Cancel</button>
+                <button type="submit" className={s.btnSuccess} disabled={clSaving}>
+                  {clSaving ? "Creating…" : "Create client + job + send invite"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

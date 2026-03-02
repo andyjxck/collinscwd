@@ -223,6 +223,8 @@ create table if not exists zz_files (
   id uuid primary key default gen_random_uuid(),
   created_at timestamptz not null default now(),
   job_id uuid not null references zz_jobs (id) on delete cascade,
+  client_deleted_at timestamptz null,
+  staff_deleted_at timestamptz null,
   uploader_user_id uuid null references auth.users (id) on delete set null,
   storage_bucket text not null,
   storage_path text not null,
@@ -475,6 +477,80 @@ with check (
   )
 );
 
+-- ── Mod log (auditable actions with undo support) ─────────────────
+create table if not exists zz_mod_log (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  actor_user_id uuid null references auth.users (id) on delete set null,
+  action text not null,
+  target_table text not null,
+  target_id uuid not null,
+  reason text null,
+  prev_state jsonb not null default '{}'::jsonb,
+  undone_at timestamptz null,
+  undone_by uuid null references auth.users (id) on delete set null
+);
+
+alter table zz_mod_log enable row level security;
+
+create policy zz_mod_log_staff
+on zz_mod_log
+for all
+using (zz_is_staff())
+with check (zz_is_staff());
+
+-- Add cancelled status, cancel_reason, and description to zz_jobs (idempotent)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns
+    where table_name = 'zz_jobs' and column_name = 'cancel_reason'
+  ) then
+    alter table zz_jobs add column cancel_reason text null;
+  end if;
+  if not exists (
+    select 1 from information_schema.columns
+    where table_name = 'zz_jobs' and column_name = 'description'
+  ) then
+    alter table zz_jobs add column description text null;
+  end if;
+end;
+$$;
+
+-- ── Field-level encryption RPC ────────────────────────────────────
+-- Creates a new zz_clients row with pgp_sym_encrypt applied to PII fields.
+-- The encryption key is passed from the server (never stored in DB).
+-- Returns the new client's UUID.
+create or replace function zz_create_client_encrypted(
+  p_full_name text,
+  p_email     text,
+  p_phone     text,
+  p_key       text
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+begin
+  insert into zz_clients (full_name, email, phone)
+  values (
+    pgp_sym_encrypt(p_full_name, p_key),
+    pgp_sym_encrypt(p_email,     p_key),
+    case when p_phone is not null then pgp_sym_encrypt(p_phone, p_key) else null end
+  )
+  returning id into v_id;
+  return v_id;
+end;
+$$;
+
+-- Drop old check constraint and add new one including 'cancelled'
+alter table zz_jobs drop constraint if exists zz_jobs_status_check;
+alter table zz_jobs add constraint zz_jobs_status_check
+  check (status in ('active', 'history', 'deleted', 'cancelled'));
+
 -- ── Cancel codes (job cancellation confirmation) ──────────────────
 create table if not exists zz_cancel_codes (
   id uuid primary key default gen_random_uuid(),
@@ -491,6 +567,66 @@ on zz_cancel_codes
 for all
 using (zz_is_staff())
 with check (zz_is_staff());
+
+-- ── Appointments ──────────────────────────────────────────────────
+create table if not exists zz_appointments (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  job_id uuid not null references zz_jobs (id) on delete cascade,
+  appt_type text not null check (appt_type in ('survey', 'parts_eta', 'scheduled', 'final_check')),
+  appt_date date not null,
+  appt_time time null,
+  person_in_charge text null,
+  is_first_visit boolean not null default false,
+  is_revisit boolean not null default false,
+  is_intended_last boolean not null default false,
+  customer_agreed boolean not null default false,
+  client_response text null check (client_response in ('accepted', 'declined', 'counter')),
+  client_response_at timestamptz null,
+  counter_message text null,
+  notes text null,
+  cancelled_at timestamptz null
+);
+
+alter table zz_appointments enable row level security;
+
+create policy zz_appointments_staff
+on zz_appointments
+for all
+using (zz_is_staff())
+with check (zz_is_staff());
+
+create policy zz_appointments_client_select
+on zz_appointments
+for select
+using (
+  exists (
+    select 1 from zz_jobs j
+    join zz_clients c on c.id = j.client_id
+    where j.id = zz_appointments.job_id
+      and c.user_id = auth.uid()
+  )
+);
+
+create policy zz_appointments_client_update
+on zz_appointments
+for update
+using (
+  exists (
+    select 1 from zz_jobs j
+    join zz_clients c on c.id = j.client_id
+    where j.id = zz_appointments.job_id
+      and c.user_id = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1 from zz_jobs j
+    join zz_clients c on c.id = j.client_id
+    where j.id = zz_appointments.job_id
+      and c.user_id = auth.uid()
+  )
+);
 
 -- ── Auto-profile trigger ──────────────────────────────────────────
 -- Fires after every new auth.users row (magic link, OTP, etc.)

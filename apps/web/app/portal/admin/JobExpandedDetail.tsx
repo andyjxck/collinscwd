@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "../../../lib/supabase";
 import { generateBrandedPDF } from "./generatePDF";
 
@@ -12,6 +12,19 @@ type QuoteItem = { id: string; position: number; description: string; qty: numbe
 type InvoiceItem = { id: string; position: number; description: string; qty: number; unit_price_pence: number; line_total_pence: number };
 type QuoteRow = { id: string; quote_number: string; status: string; total_pence: number; subtotal_pence: number; vat_pence: number };
 type InvoiceRow = { id: string; invoice_number: string; status: string; total_pence: number; subtotal_pence: number; vat_pence: number };
+type Appointment = {
+  id: string; created_at: string; job_id: string;
+  appt_type: "survey" | "parts_eta" | "scheduled" | "final_check";
+  appt_date: string; appt_time: string | null; person_in_charge: string | null;
+  is_first_visit: boolean; is_revisit: boolean; is_intended_last: boolean;
+  customer_agreed: boolean;
+  client_response: "accepted" | "declined" | "counter" | null;
+  client_response_at: string | null; counter_message: string | null;
+  notes: string | null; cancelled_at: string | null;
+};
+const APPT_LABELS: Record<string, string> = {
+  survey: "Survey", parts_eta: "Parts ETA", scheduled: "Scheduled Visit", final_check: "Final Check"
+};
 
 function pence(n: number) { return `£${(n / 100).toFixed(2)}`; }
 
@@ -22,19 +35,44 @@ function jobPhaseName(job: Job): string | null {
 }
 
 export default function JobExpandedDetail({
-  job, phases, supabase, onPhaseChange, photoUploading, onUploadFile, blockedUpload, setBlockedUpload, photos,
+  job, phases, supabase, onPhaseChange, photoUploading, onUploadFile, blockedUpload, setBlockedUpload, photos, onJobUpdate,
 }: {
   job: Job;
   phases: Phase[];
   supabase: ReturnType<typeof createClient>;
   onPhaseChange: (phaseId: string, jobId: string) => Promise<void>;
   photoUploading: boolean;
-  onUploadFile: (file: File, jobId: string, type: "quote" | "invoice" | "photo") => Promise<void>;
+  onUploadFile: (file: File, jobId: string, type: "quote" | "invoice" | "photo" | "other") => Promise<void>;
   blockedUpload: Record<string, string>;
   setBlockedUpload: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  photos: { job_id: string; file_type: string }[];
+  photos: { id: string; job_id: string; file_type: string; filename: string; storage_bucket: string; storage_path: string; mime_type: string | null; created_at: string; staff_deleted_at?: string | null; client_deleted_at?: string | null }[];
+  onJobUpdate?: (jobId: string, updates: Partial<Job>) => void;
 }) {
-  const [tab, setTab] = useState<"notes" | "quote" | "invoice">("notes");
+  const [tab, setTab] = useState<"notes" | "quote" | "invoice" | "photos" | "appts">("notes");
+  const [uploadTypePicker, setUploadTypePicker] = useState(false);
+  const uploadFileRef = useRef<HTMLInputElement>(null);
+  const [pendingUploadType, setPendingUploadType] = useState<"quote" | "invoice" | "photo" | "other">("other");
+  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
+  const [editingJob, setEditingJob] = useState(false);
+  const [editJobForm, setEditJobForm] = useState({ title: "", address_line_1: "", address_line_2: "", town_city: "", county: "", postcode: "" });
+  const [editJobSaving, setEditJobSaving] = useState(false);
+
+  // Appointments
+  const [appts, setAppts] = useState<Appointment[]>([]);
+  const [apptsLoading, setApptsLoading] = useState(false);
+  const [showApptForm, setShowApptForm] = useState(false);
+  const [apptSaving, setApptSaving] = useState(false);
+  const [apptForm, setApptForm] = useState({
+    appt_type: "survey" as Appointment["appt_type"],
+    appt_date: "",
+    appt_time: "",
+    person_in_charge: "",
+    is_first_visit: false,
+    is_revisit: false,
+    is_intended_last: false,
+    customer_agreed: false,
+    notes: "",
+  });
 
   // Notes
   const [notes, setNotes] = useState<Note[]>([]);
@@ -73,7 +111,45 @@ export default function JobExpandedDetail({
   useEffect(() => {
     if (tab === "quote" && !quote && !quoteLoading) loadQuote();
     if (tab === "invoice" && !invoice && !invoiceLoading) loadInvoice();
+    if (tab === "appts") loadAppts();
   }, [tab]);
+
+  async function loadAppts() {
+    setApptsLoading(true);
+    const { data } = await supabase.from("zz_appointments")
+      .select("*").eq("job_id", job.id).is("cancelled_at", null)
+      .order("appt_date", { ascending: true });
+    if (data) setAppts(data as Appointment[]);
+    setApptsLoading(false);
+  }
+
+  async function saveAppt(e: React.FormEvent) {
+    e.preventDefault();
+    if (!apptForm.appt_date) return;
+    setApptSaving(true);
+    const payload = {
+      job_id: job.id,
+      appt_type: apptForm.appt_type,
+      appt_date: apptForm.appt_date,
+      appt_time: apptForm.appt_time || null,
+      person_in_charge: apptForm.person_in_charge || null,
+      is_first_visit: apptForm.is_first_visit,
+      is_revisit: apptForm.is_revisit,
+      is_intended_last: apptForm.is_intended_last,
+      customer_agreed: apptForm.customer_agreed,
+      notes: apptForm.notes || null,
+    };
+    const { data } = await supabase.from("zz_appointments").insert(payload).select("*").single();
+    if (data) setAppts(prev => [...prev, data as Appointment].sort((a, b) => a.appt_date.localeCompare(b.appt_date)));
+    setApptForm({ appt_type: "survey", appt_date: "", appt_time: "", person_in_charge: "", is_first_visit: false, is_revisit: false, is_intended_last: false, customer_agreed: false, notes: "" });
+    setShowApptForm(false);
+    setApptSaving(false);
+  }
+
+  async function cancelAppt(id: string) {
+    await supabase.from("zz_appointments").update({ cancelled_at: new Date().toISOString() }).eq("id", id);
+    setAppts(prev => prev.filter(a => a.id !== id));
+  }
 
   async function loadNotes() {
     setNotesLoading(true);
@@ -285,10 +361,60 @@ export default function JobExpandedDetail({
     </div>
   );
 
+  async function saveJobEdit() {
+    setEditJobSaving(true);
+    const updates: Record<string, string> = {};
+    if (editJobForm.title.trim()) updates.title = editJobForm.title.trim();
+    if (editJobForm.address_line_1.trim()) updates.address_line_1 = editJobForm.address_line_1.trim();
+    if (editJobForm.address_line_2.trim()) updates.address_line_2 = editJobForm.address_line_2.trim();
+    if (editJobForm.town_city.trim()) updates.town_city = editJobForm.town_city.trim();
+    if (editJobForm.county.trim()) updates.county = editJobForm.county.trim();
+    if (editJobForm.postcode.trim()) updates.postcode = editJobForm.postcode.trim();
+    await supabase.from("zz_jobs").update(updates).eq("id", job.id);
+    onJobUpdate?.(job.id, updates);
+    setEditingJob(false);
+    setEditJobSaving(false);
+  }
+
   return (
     <div style={detailStyle}>
-      <div style={{ fontSize: 13, fontWeight: 700, color: "#e8ecf8", marginBottom: 2 }}>{job.title}</div>
-      <div style={{ fontSize: 11, color: "rgba(232,236,248,0.35)", marginBottom: 8 }}>{job.address_line_1}, {job.town_city} {job.postcode}</div>
+      {editingJob ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            <input style={{ ...inputStyle, gridColumn: "1 / -1" }} placeholder="Job title" value={editJobForm.title}
+              onChange={e => setEditJobForm(p => ({ ...p, title: e.target.value }))} />
+            <input style={inputStyle} placeholder="Address line 1" value={editJobForm.address_line_1}
+              onChange={e => setEditJobForm(p => ({ ...p, address_line_1: e.target.value }))} />
+            <input style={inputStyle} placeholder="Address line 2" value={editJobForm.address_line_2}
+              onChange={e => setEditJobForm(p => ({ ...p, address_line_2: e.target.value }))} />
+            <input style={inputStyle} placeholder="Town / City" value={editJobForm.town_city}
+              onChange={e => setEditJobForm(p => ({ ...p, town_city: e.target.value }))} />
+            <input style={inputStyle} placeholder="County" value={editJobForm.county}
+              onChange={e => setEditJobForm(p => ({ ...p, county: e.target.value }))} />
+            <input style={{ ...inputStyle, gridColumn: "1 / -1" }} placeholder="Postcode" value={editJobForm.postcode}
+              onChange={e => setEditJobForm(p => ({ ...p, postcode: e.target.value }))} />
+          </div>
+          <div style={{ display: "flex", gap: 6 }}>
+            <button style={{ ...btnSmall, background: "rgba(52,211,153,0.12)", color: "#34d399" }}
+              onClick={saveJobEdit} disabled={editJobSaving}>
+              {editJobSaving ? "Saving…" : "Save"}
+            </button>
+            <button style={{ ...btnSmall, background: "none", color: "rgba(232,236,248,0.35)" }}
+              onClick={() => setEditingJob(false)}>Cancel</button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 6, marginBottom: 2 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#e8ecf8", marginBottom: 2 }}>{job.title}</div>
+            <div style={{ fontSize: 11, color: "rgba(232,236,248,0.35)" }}>{job.address_line_1}, {job.town_city} {job.postcode}</div>
+          </div>
+          <button style={{ fontSize: 10, background: "none", border: "none", color: "rgba(232,236,248,0.3)", cursor: "pointer", padding: "2px 4px", flexShrink: 0 }}
+            onClick={() => { setEditJobForm({ title: job.title, address_line_1: job.address_line_1 ?? "", address_line_2: "", town_city: job.town_city ?? "", county: "", postcode: job.postcode ?? "" }); setEditingJob(true); }}
+            title="Edit job details">✏</button>
+        </div>
+      )}
+      <div style={{ marginBottom: 8 }} />
 
       <PhaseTrack />
       <div style={{ fontSize: 11, color: "rgba(232,236,248,0.35)", marginBottom: 10 }}>{currentPhaseName ?? "No phase set"}</div>
@@ -319,13 +445,40 @@ export default function JobExpandedDetail({
         </div>
       )}
 
-      {/* Photo upload — icon only */}
-      <div style={{ marginBottom: 10 }}>
-        <label title="Add photo" style={{ display: "inline-flex", alignItems: "center", fontSize: 16, color: "rgba(232,236,248,0.35)", cursor: "pointer", lineHeight: 1 }}>
-          {photoUploading ? <span style={{ fontSize: 11 }}>…</span> : "📷"}
-          <input type="file" accept="image/*" style={{ display: "none" }}
-            onChange={e => { const f = e.target.files?.[0]; if (f) onUploadFile(f, job.id, "photo"); e.target.value = ""; }} />
-        </label>
+      {/* Photo upload — type picker then file dialog */}
+      <div style={{ marginBottom: 10, position: "relative" }}>
+        {!uploadTypePicker ? (
+          <button title="Add file" onClick={() => setUploadTypePicker(true)}
+            style={{ background: "none", border: "none", cursor: "pointer", fontSize: 16, color: "rgba(232,236,248,0.35)", padding: 0, lineHeight: 1 }}>
+            {photoUploading ? <span style={{ fontSize: 11, color: "rgba(232,236,248,0.3)" }}>Uploading…</span> : "📷"}
+          </button>
+        ) : (
+          <div style={{ display: "flex", gap: 4, alignItems: "center", flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, color: "rgba(232,236,248,0.35)", marginRight: 2 }}>Type:</span>
+            {(["quote", "invoice", "other"] as const).map(t => (
+              <button key={t} type="button"
+                style={{ fontSize: 10, padding: "2px 8px", borderRadius: 4, border: "1px solid rgba(255,255,255,0.12)",
+                  background: pendingUploadType === t ? "rgba(127,165,255,0.15)" : "rgba(255,255,255,0.03)",
+                  color: pendingUploadType === t ? "#7fa5ff" : "rgba(232,236,248,0.5)", cursor: "pointer" }}
+                onClick={() => setPendingUploadType(t)}>
+                {t === "other" ? "Photo / Other" : t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
+            ))}
+            <label style={{ fontSize: 10, padding: "2px 10px", borderRadius: 4, border: "1px solid rgba(52,211,153,0.3)",
+              background: "rgba(52,211,153,0.08)", color: "#34d399", cursor: "pointer", marginLeft: 2 }}>
+              Upload
+              <input ref={uploadFileRef} type="file" accept="image/*,.pdf" style={{ display: "none" }}
+                onChange={async e => {
+                  const f = e.target.files?.[0];
+                  if (f) await onUploadFile(f, job.id, pendingUploadType);
+                  e.target.value = "";
+                  setUploadTypePicker(false);
+                }} />
+            </label>
+            <button type="button" onClick={() => setUploadTypePicker(false)}
+              style={{ fontSize: 10, background: "none", border: "none", color: "rgba(232,236,248,0.3)", cursor: "pointer" }}>✕</button>
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -333,6 +486,12 @@ export default function JobExpandedDetail({
         <button style={tabBtnStyle(tab === "notes")} onClick={() => setTab("notes")}>Notes</button>
         <button style={tabBtnStyle(tab === "quote")} onClick={() => { setTab("quote"); if (!quote && !quoteLoading) loadQuote(); }}>Quote</button>
         <button style={tabBtnStyle(tab === "invoice")} onClick={() => { setTab("invoice"); if (!invoice && !invoiceLoading) loadInvoice(); }}>Invoice</button>
+        <button style={tabBtnStyle(tab === "photos")} onClick={() => setTab("photos")}>
+          Photos {photos.filter(p => p.job_id === job.id).length > 0 ? `(${photos.filter(p => p.job_id === job.id).length})` : ""}
+        </button>
+        <button style={tabBtnStyle(tab === "appts")} onClick={() => setTab("appts")}>
+          Appts {appts.length > 0 ? `(${appts.length})` : ""}
+        </button>
       </div>
 
       {/* Notes tab */}
@@ -418,6 +577,71 @@ export default function JobExpandedDetail({
         </div>
       )}
 
+      {/* Photos tab */}
+      {tab === "photos" && (() => {
+        async function deleteFile(fileId: string) {
+          setDeletingFileId(fileId);
+          await supabase.from("zz_files").update({ staff_deleted_at: new Date().toISOString() }).eq("id", fileId);
+          setDeletingFileId(null);
+          // Notify parent to refresh photos — remove from local view
+          window.dispatchEvent(new CustomEvent("zz_file_deleted", { detail: { id: fileId } }));
+        }
+        const jobFiles = photos.filter(p => p.job_id === job.id && !p.staff_deleted_at);
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+        const byType: Record<string, typeof jobFiles> = { quote: [], invoice: [], photo: [], other: [] };
+        jobFiles.forEach(f => { const t = f.file_type ?? "other"; const bucket = byType[t] ?? byType.other; bucket?.push(f); });
+        const typeLabel: Record<string, string> = { quote: "Quotes", invoice: "Invoices", photo: "Photos", other: "Other" };
+        const typeColour: Record<string, string> = { quote: "#fbbf24", invoice: "#34d399", photo: "#7fa5ff", other: "#9ca3af" };
+        if (jobFiles.length === 0) return <div style={{ fontSize: 11, color: "rgba(232,236,248,0.25)" }}>No files uploaded yet.</div>;
+        return (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {(["quote", "invoice", "photo", "other"] as const).map(type => {
+              const typedFiles = byType[type] ?? [];
+              if (typedFiles.length === 0) return null;
+              return (
+                <div key={type}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: typeColour[type], letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 6 }}>
+                    {typeLabel[type]}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {typedFiles.map(file => {
+                      const url = `${supabaseUrl}/storage/v1/object/public/${file.storage_bucket}/${file.storage_path}`;
+                      const isImage = file.mime_type?.startsWith("image/");
+                      return (
+                        <div key={file.id} style={{ display: "flex", flexDirection: "column", gap: 4, width: 80, position: "relative" }}>
+                          <a href={url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: "none" }}>
+                            <div style={{ width: 80, height: 60, borderRadius: 5, overflow: "hidden", background: "rgba(255,255,255,0.04)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                              {isImage
+                                ? <img src={url} alt={file.filename} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                                : <span style={{ fontSize: 22 }}>{type === "quote" ? "📄" : type === "invoice" ? "🧾" : "📎"}</span>
+                              }
+                            </div>
+                          </a>
+                          <span style={{ fontSize: 9, color: "rgba(232,236,248,0.4)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.filename}</span>
+                          <button
+                            onClick={() => deleteFile(file.id)}
+                            disabled={deletingFileId === file.id}
+                            title="Delete (staff)"
+                            style={{ position: "absolute", top: 2, right: 2, width: 16, height: 16, borderRadius: "50%",
+                              background: "rgba(248,113,113,0.8)", border: "none", cursor: "pointer",
+                              fontSize: 9, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+                              opacity: deletingFileId === file.id ? 0.4 : 1 }}>
+                            ✕
+                          </button>
+                          {file.client_deleted_at && (
+                            <span style={{ fontSize: 8, color: "rgba(251,191,36,0.6)", textAlign: "center" }}>Client deleted</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
       {/* Invoice tab */}
       {tab === "invoice" && (
         <div>
@@ -462,6 +686,108 @@ export default function JobExpandedDetail({
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#34d399" }}>Total: {pence(invoice.total_pence)}</span>
               </div>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Appointments tab ── */}
+      {tab === "appts" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {/* Existing appointments */}
+          {apptsLoading && <div style={{ fontSize: 11, color: "rgba(232,236,248,0.3)" }}>Loading…</div>}
+          {!apptsLoading && appts.length === 0 && !showApptForm && (
+            <div style={{ fontSize: 11, color: "rgba(232,236,248,0.25)" }}>No appointments yet.</div>
+          )}
+          {appts.map(a => {
+            const responseColour = a.client_response === "accepted" ? "#34d399" : a.client_response === "declined" ? "#f87171" : a.client_response === "counter" ? "#fbbf24" : null;
+            return (
+              <div key={a.id} style={{ background: "rgba(255,255,255,0.03)", borderRadius: 8, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 5 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#7fa5ff", background: "rgba(127,165,255,0.08)", borderRadius: 4, padding: "1px 7px", textTransform: "uppercase", letterSpacing: "0.4px" }}>
+                    {APPT_LABELS[a.appt_type]}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: "#e8ecf8" }}>
+                    {new Date(a.appt_date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+                    {a.appt_time ? ` at ${a.appt_time.slice(0,5)}` : ""}
+                  </span>
+                  {a.person_in_charge && (
+                    <span style={{ fontSize: 11, color: "rgba(232,236,248,0.45)" }}>· {a.person_in_charge}</span>
+                  )}
+                  <button onClick={() => cancelAppt(a.id)} style={{ marginLeft: "auto", fontSize: 10, color: "rgba(248,113,113,0.4)", background: "none", border: "none", cursor: "pointer" }}>✕</button>
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {a.is_first_visit && <span style={{ fontSize: 9, color: "rgba(52,211,153,0.7)", background: "rgba(52,211,153,0.07)", borderRadius: 3, padding: "1px 6px" }}>First visit</span>}
+                  {a.is_revisit && <span style={{ fontSize: 9, color: "rgba(251,191,36,0.7)", background: "rgba(251,191,36,0.07)", borderRadius: 3, padding: "1px 6px" }}>Re-visit</span>}
+                  {a.is_intended_last && <span style={{ fontSize: 9, color: "rgba(167,139,250,0.7)", background: "rgba(167,139,250,0.07)", borderRadius: 3, padding: "1px 6px" }}>Intended last visit</span>}
+                  {a.customer_agreed
+                    ? <span style={{ fontSize: 9, color: "rgba(52,211,153,0.7)", background: "rgba(52,211,153,0.07)", borderRadius: 3, padding: "1px 6px" }}>✓ Customer agreed</span>
+                    : <span style={{ fontSize: 9, color: "rgba(251,191,36,0.7)", background: "rgba(251,191,36,0.07)", borderRadius: 3, padding: "1px 6px" }}>⏳ Awaiting confirmation</span>
+                  }
+                  {a.client_response && (
+                    <span style={{ fontSize: 9, color: responseColour ?? "rgba(232,236,248,0.5)", background: "rgba(255,255,255,0.05)", borderRadius: 3, padding: "1px 6px", fontWeight: 700, textTransform: "capitalize" }}>
+                      Client: {a.client_response}
+                      {a.counter_message ? ` — "${a.counter_message}"` : ""}
+                    </span>
+                  )}
+                </div>
+                {a.notes && <div style={{ fontSize: 11, color: "rgba(232,236,248,0.4)", fontStyle: "italic" }}>{a.notes}</div>}
+              </div>
+            );
+          })}
+
+          {/* Add appointment form */}
+          {!showApptForm ? (
+            <button onClick={() => setShowApptForm(true)} style={{ ...btnSmall, alignSelf: "flex-start", marginTop: 4 }}>+ Add appointment</button>
+          ) : (
+            <form onSubmit={saveAppt} style={{ display: "flex", flexDirection: "column", gap: 8, background: "rgba(255,255,255,0.02)", borderRadius: 8, padding: "12px 12px 10px" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: "rgba(232,236,248,0.5)", letterSpacing: "0.4px", textTransform: "uppercase", marginBottom: 2 }}>New appointment</div>
+
+              {/* Type + Date + Time */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 100px", gap: 6 }}>
+                <select value={apptForm.appt_type} onChange={e => setApptForm(p => ({ ...p, appt_type: e.target.value as Appointment["appt_type"] }))} style={inputStyle}>
+                  <option value="survey">Survey</option>
+                  <option value="parts_eta">Parts ETA</option>
+                  <option value="scheduled">Scheduled Visit</option>
+                  <option value="final_check">Final Check</option>
+                </select>
+                <input required type="date" value={apptForm.appt_date} onChange={e => setApptForm(p => ({ ...p, appt_date: e.target.value }))} style={inputStyle} />
+                <input type="time" value={apptForm.appt_time} onChange={e => setApptForm(p => ({ ...p, appt_time: e.target.value }))} style={inputStyle} placeholder="Time (opt)" />
+              </div>
+
+              {/* Person in charge */}
+              <input placeholder="Person in charge (optional)" value={apptForm.person_in_charge} onChange={e => setApptForm(p => ({ ...p, person_in_charge: e.target.value }))} style={inputStyle} />
+
+              {/* Checkboxes */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 5, paddingLeft: 2 }}>
+                {([
+                  ["is_first_visit", "This is the first visit"],
+                  ["is_revisit", "This is a re-visit"],
+                  ["is_intended_last", "This is intended to be the last visit"],
+                ] as [keyof typeof apptForm, string][]).map(([key, label]) => (
+                  <label key={key} style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, color: "rgba(232,236,248,0.6)", cursor: "pointer" }}>
+                    <input type="checkbox" checked={apptForm[key] as boolean} onChange={e => setApptForm(p => ({ ...p, [key]: e.target.checked }))} style={{ accentColor: "#7fa5ff", width: 13, height: 13 }} />
+                    {label}
+                  </label>
+                ))}
+                <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 11, cursor: "pointer",
+                  color: apptForm.customer_agreed ? "#34d399" : "rgba(251,191,36,0.85)" }}>
+                  <input type="checkbox" checked={apptForm.customer_agreed} onChange={e => setApptForm(p => ({ ...p, customer_agreed: e.target.checked }))} style={{ accentColor: "#34d399", width: 13, height: 13 }} />
+                  The customer has agreed to this time verbally or outside of the website
+                  {!apptForm.customer_agreed && <span style={{ fontSize: 9, color: "rgba(251,191,36,0.6)", marginLeft: 4 }}>(client will be asked to confirm)</span>}
+                </label>
+              </div>
+
+              {/* Notes */}
+              <textarea placeholder="Notes (optional)" value={apptForm.notes} onChange={e => setApptForm(p => ({ ...p, notes: e.target.value }))} rows={2}
+                style={{ ...inputStyle, resize: "vertical", width: "100%", boxSizing: "border-box" }} />
+
+              <div style={{ display: "flex", gap: 8 }}>
+                <button type="submit" disabled={apptSaving || !apptForm.appt_date} style={btnSmall}>
+                  {apptSaving ? "Saving…" : "Save appointment"}
+                </button>
+                <button type="button" onClick={() => setShowApptForm(false)} style={{ ...btnSmall, color: "rgba(232,236,248,0.3)" }}>Cancel</button>
+              </div>
+            </form>
           )}
         </div>
       )}
