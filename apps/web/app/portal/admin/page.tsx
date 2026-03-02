@@ -819,12 +819,19 @@ export default function AdminPortal() {
     setClientActionLoading(false);
   }
 
-  function sendClientEmail(email: string) {
+  async function sendClientEmail(email: string, clientName: string) {
     if (!emailSubject.trim() || !emailBody.trim()) return;
-    const mailto = `mailto:${email}?subject=${encodeURIComponent(emailSubject.trim())}&body=${encodeURIComponent(emailBody.trim())}`;
-    window.open(mailto, "_blank");
+    setClientActionLoading(true);
+    const res = await fetch("/api/send-client-email", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ toEmail: email, toName: clientName, subject: emailSubject.trim(), body: emailBody.trim() }),
+    });
+    const json = await res.json();
+    setClientActionLoading(false);
+    if (!res.ok) { setClientActionMsg(`Failed: ${json.error}`); return; }
     setEmailSubject(""); setEmailBody("");
-    setClientActionMsg("Email client opened.");
+    setClientActionMsg("Email sent.");
     setClientActionPanel("none");
   }
 
@@ -1376,9 +1383,10 @@ export default function AdminPortal() {
                               }}>
                               💬 Message
                             </button>
-                            <a href={`mailto:${c.email}`} className={s.btnSmall} style={{ textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+                            <button className={s.btnSmall}
+                              onClick={() => setClientActionPanel(clientActionPanel === "email" ? "none" : "email")}>
                               ✉ Email
-                            </a>
+                            </button>
                             {clientJobs.length > 0 && (
                               <button className={s.btnDanger}
                                 onClick={() => { setClientActionPanel("cancel"); setCancelJobId(null); setCancelReason(""); }}>
@@ -1469,7 +1477,7 @@ export default function AdminPortal() {
                                 value={emailBody} onChange={e => setEmailBody(e.target.value)} style={{ resize: "vertical" }} />
                               <div style={{ display: "flex", gap: 8 }}>
                                 <button className={s.btnPrimary} disabled={clientActionLoading || !emailSubject.trim() || !emailBody.trim()}
-                                  onClick={() => sendClientEmail(c.email)}>Send email</button>
+                                  onClick={() => sendClientEmail(c.email, c.full_name ?? "")}>Send email</button>
                                 <button className={s.btnGhost} onClick={() => setClientActionPanel("none")}>Cancel</button>
                               </div>
                             </div>
