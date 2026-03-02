@@ -381,9 +381,10 @@ function ServicesMorph() {
       const elTop = el.getBoundingClientRect().top + window.scrollY;
       const scrolled = window.scrollY - elTop;
       const vh = window.innerHeight;
-      const total = (SERVICES.length - 1) * vh;
+      // total scrollable range = outer height minus the sticky viewport height
+      const total = el.offsetHeight - vh;
       const progress = Math.max(0, Math.min(1, scrolled / total));
-      const newIdx = Math.min(SERVICES.length - 1, Math.floor(progress * SERVICES.length + 0.01));
+      const newIdx = Math.min(SERVICES.length - 1, Math.floor(progress * SERVICES.length));
       if (newIdx !== pendingIdx.current) {
         pendingIdx.current = newIdx;
         setExiting(true);
