@@ -1464,84 +1464,115 @@
 /* ── Mobile pill nav ─────────────────────── */
 .mobilePillNav {
   display: none;
-  position: relative;
-  z-index: 100;
-  padding: 0 0 16px 0;
-  margin: -8px 0 8px 0;
+  margin: 0 0 20px 0;
 }
-.mobilePillTrigger {
+/* Outer row: pill + expanded items sit inline */
+.mobilePillRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+}
+/* The collapsed pill — single icon circle */
+.mobilePillCollapsed {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer;
+  font-size: 17px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  padding: 0;
+  font-family: inherit;
+  color: #e8ecf8;
+}
+.mobilePillCollapsed:hover { background: rgba(255,255,255,0.12); }
+/* Expanded: pill grows to show all icons */
+.mobilePillExpanded {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 99px;
-  padding: 8px 16px 8px 12px;
-  cursor: pointer;
-  font-family: inherit;
-  width: 100%;
-  color: #e8ecf8;
-  font-size: 13px;
-  font-weight: 600;
-  transition: background 0.15s;
+  padding: 4px;
+  animation: pillExpandIn 0.22s cubic-bezier(0.22,1,0.36,1);
 }
-.mobilePillTrigger:hover { background: rgba(255,255,255,0.09); }
-.mobilePillIcon { font-size: 16px; }
-.mobilePillLabel { flex: 1; text-align: left; }
-.mobilePillChevron {
-  font-size: 10px;
-  opacity: 0.5;
-  transition: transform 0.2s;
-  display: inline-block;
+@keyframes pillExpandIn {
+  from { opacity: 0; transform: scaleX(0.6); transform-origin: left; }
+  to   { opacity: 1; transform: scaleX(1); }
 }
-.mobilePillChevronOpen { transform: rotate(180deg); opacity: 0.8; }
-.mobilePillMenu {
-  position: absolute;
-  top: calc(100% - 4px);
-  left: 16px;
-  right: 16px;
-  background: rgba(13,16,24,0.97);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 16px;
-  padding: 8px;
-  box-shadow: 0 16px 48px rgba(0,0,0,0.5);
-  animation: pillMenuDrop 0.18s cubic-bezier(0.22,1,0.36,1);
-  z-index: 200;
-}
-@keyframes pillMenuDrop {
-  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
-}
-.mobilePillItem {
+/* Each item button inside the expanded pill */
+.mobilePillNavItem {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 11px 14px;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 500;
-  color: rgba(232,236,248,0.6);
-  cursor: pointer;
+  gap: 0;
   background: none;
   border: none;
+  cursor: pointer;
   font-family: inherit;
-  width: 100%;
-  text-align: left;
-  transition: background 0.12s, color 0.12s;
+  color: rgba(232,236,248,0.5);
+  transition: color 0.12s;
+  padding: 0;
+  position: relative;
 }
-.mobilePillItem:hover { background: rgba(255,255,255,0.06); color: #e8ecf8; }
-.mobilePillItemActive { color: #e8ecf8; background: rgba(255,255,255,0.08); font-weight: 600; }
-.mobilePillItemIcon { font-size: 16px; width: 20px; text-align: center; }
-.mobilePillItemLabel { flex: 1; }
-.mobilePillBadge {
-  background: rgba(251,191,36,0.15);
-  color: #fbbf24;
-  font-size: 10px;
-  font-weight: 700;
-  padding: 1px 7px;
+/* Icon circle inside pill */
+.mobilePillNavItemInner {
+  width: 40px;
+  height: 40px;
   border-radius: 99px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  transition: background 0.12s;
+}
+.mobilePillNavItem:hover .mobilePillNavItemInner { background: rgba(255,255,255,0.07); }
+.mobilePillNavItemActive .mobilePillNavItemInner {
+  background: rgba(255,255,255,0.1);
+}
+.mobilePillNavItemActive { color: #e8ecf8; }
+/* Labels sit OUTSIDE/BELOW the pill */
+.mobilePillLabelsRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  margin-top: 5px;
+  padding-left: 2px;
+}
+.mobilePillNavLabel {
+  width: 40px;
+  text-align: center;
+  font-size: 9px;
+  font-weight: 600;
+  color: rgba(232,236,248,0.3);
+  letter-spacing: 0.2px;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color 0.12s;
+}
+.mobilePillNavLabelActive { color: rgba(232,236,248,0.85); }
+.mobilePillBadge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  background: rgba(251,191,36,0.9);
+  color: #0d1018;
+  font-size: 8px;
+  font-weight: 800;
+  width: 14px;
+  height: 14px;
+  border-radius: 99px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ── Responsive ──────────────────────────── */

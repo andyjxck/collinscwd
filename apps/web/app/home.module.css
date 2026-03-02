@@ -1367,10 +1367,10 @@
   .processVertical    { display: flex; margin-top: 48px; }
 
   /* Bubbles */
-  .bubblesWrap   { padding: 0 20px; }
+  .bubblesWrap   { padding: 0 20px; overflow: hidden; }
   .bubble        { max-width: 92%; }
-  .bubble_left   { transform: translateX(-30px) translateY(16px) scale(0.88); }
-  .bubble_right  { transform: translateX(30px) translateY(16px) scale(0.88); }
+  .bubble_left   { transform: translateX(0px) translateY(16px) scale(0.88); }
+  .bubble_right  { transform: translateX(0px) translateY(16px) scale(0.88); }
 
   /* Contact */
   .contact       { padding: 80px 0; }

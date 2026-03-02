@@ -30,28 +30,41 @@ function MobilePillNav({ items, activeKey, onSelect, styles }: {
 
   return (
     <div className={styles.mobilePillNav} ref={ref}>
-      <button
-        className={styles.mobilePillTrigger}
-        onClick={() => setOpen(v => !v)}
-        aria-expanded={open}
-      >
-        <span className={styles.mobilePillIcon}>{active?.icon}</span>
-        <span className={styles.mobilePillLabel}>{active?.label}</span>
-        <span className={`${styles.mobilePillChevron} ${open ? styles.mobilePillChevronOpen : ""}`}>▾</span>
-      </button>
-      {open && (
-        <div className={styles.mobilePillMenu}>
-          {items.map(item => (
-            <button
-              key={item.key}
-              className={`${styles.mobilePillItem} ${item.key === activeKey ? styles.mobilePillItemActive : ""}`}
-              onClick={() => { onSelect(item.key); setOpen(false); }}
-            >
-              <span className={styles.mobilePillItemIcon}>{item.icon}</span>
-              <span className={styles.mobilePillItemLabel}>{item.label}</span>
-              {item.badge ? <span className={styles.mobilePillBadge}>{item.badge}</span> : null}
-            </button>
-          ))}
+      {!open ? (
+        /* Collapsed: single icon circle */
+        <button
+          className={styles.mobilePillCollapsed}
+          onClick={() => setOpen(true)}
+          title={active?.label}
+        >
+          {active?.icon}
+        </button>
+      ) : (
+        /* Expanded: horizontal pill with all icons + labels outside below */
+        <div>
+          <div className={styles.mobilePillExpanded}>
+            {items.map(item => (
+              <button
+                key={item.key}
+                className={`${styles.mobilePillNavItem} ${item.key === activeKey ? styles.mobilePillNavItemActive : ""}`}
+                onClick={() => { onSelect(item.key); setOpen(false); }}
+                title={item.label}
+              >
+                <span className={styles.mobilePillNavItemInner}>{item.icon}</span>
+                {item.badge ? <span className={styles.mobilePillBadge}>{item.badge}</span> : null}
+              </button>
+            ))}
+          </div>
+          <div className={styles.mobilePillLabelsRow}>
+            {items.map(item => (
+              <span
+                key={item.key}
+                className={`${styles.mobilePillNavLabel} ${item.key === activeKey ? styles.mobilePillNavLabelActive : ""}`}
+              >
+                {item.label}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </div>

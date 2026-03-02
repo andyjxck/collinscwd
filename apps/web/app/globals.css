@@ -15,7 +15,7 @@
   --warn:      #fbbf24;
 }
 
-html { color-scheme: dark; }
+html { color-scheme: dark; overflow-x: hidden; max-width: 100%; }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
