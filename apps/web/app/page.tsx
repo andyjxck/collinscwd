@@ -371,34 +371,34 @@ const SERVICES = [
 function ServicesMorph() {
   const outerRef = useRef<HTMLDivElement>(null);
   const [activeIdx, setActiveIdx] = useState(0);
-  const [exiting, setExiting] = useState(false);
-  const pendingIdx = useRef(0);
+  const lastIdx = useRef(0);
 
   useEffect(() => {
-    const calc = () => {
+    const onScroll = () => {
       const el = outerRef.current;
       if (!el) return;
-      const total = el.offsetHeight - window.innerHeight;
-      if (total <= 0) return;
-      const elTop = el.getBoundingClientRect().top + window.scrollY;
-      const scrolled = window.scrollY - elTop;
-      const progress = Math.max(0, Math.min(1, scrolled / total));
-      const newIdx = Math.min(SERVICES.length - 1, Math.floor(progress * SERVICES.length));
-      if (newIdx !== pendingIdx.current) {
-        pendingIdx.current = newIdx;
-        setExiting(true);
-        setTimeout(() => { setActiveIdx(newIdx); setExiting(false); }, 280);
+      // How far the top of the section is above the viewport top
+      const rect = el.getBoundingClientRect();
+      // scrolled = how many px we've scrolled INTO the section
+      const scrolled = -rect.top;
+      const segmentHeight = window.innerHeight; // each card gets 1 full vh of scroll
+      if (scrolled < 0) {
+        if (lastIdx.current !== 0) { lastIdx.current = 0; setActiveIdx(0); }
+        return;
+      }
+      const idx = Math.min(SERVICES.length - 1, Math.floor(scrolled / segmentHeight));
+      if (idx !== lastIdx.current) {
+        lastIdx.current = idx;
+        setActiveIdx(idx);
       }
     };
-    const onScroll = () => calc();
     window.addEventListener("scroll", onScroll, { passive: true });
-    // defer first call until after layout paint
-    requestAnimationFrame(() => calc());
+    onScroll();
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
   const svc = SERVICES[activeIdx]!;
-  const animClass = exiting ? s.servicesMorphExit : s.servicesMorphEnter;
+  const animClass = s.servicesMorphEnter;
   return (
     <section className={s.servicesMorphOuter} id="services" ref={outerRef}>
       <div className={s.servicesMorphSticky}>
